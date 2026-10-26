@@ -182,6 +182,13 @@ nav{
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)'/%3E%3C/svg%3E");
   animation:grain 9s steps(10) infinite;
 }
+/* 手机上停掉颗粒位移：steps() 让这块两倍屏大的噪点纹理每 0.9s 瞬跳一次，
+   手机 GPU 上就是肉眼可见的频闪。静态纸纹保留，纹理由噪点本身提供，不靠位移。
+   顺带把两层固定背景提到合成层，滚动时不再反复重绘。 */
+@media (max-width:960px),(pointer:coarse){
+  .grain::before{animation:none;}
+}
+.grain,.wash{transform:translateZ(0);will-change:transform;}
 /* 水彩晕染层（每页换色） */
 .wash{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;}
 .wash i{position:absolute;border-radius:50%;filter:blur(70px);opacity:.6;transition:background 1.1s ease;}
@@ -561,6 +568,13 @@ nav{
     border-radius:10px;font-size:13.5px;
   }
   .explore-toast{max-width:100%;}
+
+  /* 手机端：地图点位文字放大。
+     地图是 900×520 的 viewBox，铺到手机只剩 350px 宽，18px 的主标被压到 7px、
+     11px 的副标压到 4px——等于看不清。放大后主标约 9px、副标约 5.5px。
+     不加描边：字被缩得极小的时候，描边会先糊成一坨，比不加更糟。 */
+  .em-lbl{font-size:25px;}
+  .em-sub{font-size:14px;letter-spacing:1px;}
 
   /* 手机端：下载简历与声音按钮同行（logo 左、声音+简历右） */
   nav{gap:8px;}
@@ -1194,11 +1208,12 @@ nav.nav-hide{transform:translateY(-110%);}
 }
 .em-canvas[data-lit="1"]::after{opacity:.18;}
 .em-canvas[data-lit="2"]::after{opacity:.42;}
-.em-canvas[data-lit="3"]::after{opacity:.82;animation:mapLit 4.6s ease-in-out infinite;}
-@keyframes mapLit{0%,100%{opacity:.58}50%{opacity:.9}}
+.em-canvas[data-lit="3"]::after{opacity:.78;animation:mapLit 4.6s ease-in-out infinite;}
+/* 呼吸幅度收窄（原 .58→.9）：整张地图大小的光晕大起大落，看起来更像闪烁而不是呼吸 */
+@keyframes mapLit{0%,100%{opacity:.70}50%{opacity:.84}}
 /* 走过的点位：金色光晕常亮，轻轻呼吸 */
 .em-node.visited .em-halo{opacity:.30;animation:haloBreath 3.6s ease-in-out infinite;}
-@keyframes haloBreath{0%,100%{opacity:.20}50%{opacity:.46}}
+@keyframes haloBreath{0%,100%{opacity:.24}50%{opacity:.40}}
 /* 地图上的路：探明越多越亮，但只加辉光不动原色 */
 .em-canvas[data-lit="2"] .em-trail{filter:drop-shadow(0 0 3px rgba(226,164,86,.55));}
 .em-canvas[data-lit="3"] .em-trail{filter:drop-shadow(0 0 6px rgba(255,196,110,.85));}
@@ -1446,6 +1461,20 @@ footer .f-ghost{
 }
 /* 大留白已在 .sec/.page-hero/.sec-head 原规则加大 */
 @media (max-width:960px){.vt{display:none;}.chap-no{font-size:clamp(96px,26vw,150px);opacity:.7;}}
+
+/* ============ 手机端背景降级 ============
+   70px 的晕染模糊每帧都要重算，叠上点阵层和 mask 动画，中低端机滚动时掉帧，
+   观感就是「画面在闪」。手机上把模糊半径收小、点阵层停止脉动，画面更稳也更省电。 */
+@media (max-width:960px){
+  .wash i{filter:blur(44px);}
+  .mega-cloud{filter:blur(16px);}
+  /* .mega-halftone 的原规则在本段之后，同优先级会被它盖掉，用 !important 顶住 */
+  .mega-halftone{animation:none !important;}
+  /* 已探明工坊的路线辉光：drop-shadow 作用在整条 SVG 路径上，手机上每帧重绘成本很高，
+     观感是地图发虚、边缘闪。手机端收成静态浅辉光，或干脆不加。 */
+  .em-canvas[data-lit="2"] .em-trail{filter:none;}
+  .em-canvas[data-lit="3"] .em-trail{filter:drop-shadow(0 0 2px rgba(255,196,110,.6));}
+}
 
 /* ============ 动效降级（尊重系统减少动态偏好） ============ */
 @media (prefers-reduced-motion: reduce){
@@ -3685,18 +3714,49 @@ document.querySelectorAll(".stat-band").forEach(function(el){ statIO.observe(el)
 (function(){
   var nav = document.querySelector("nav");
   if(!nav) return;
-  var lastY = window.pageYOffset || 0;
+
+  /* 手机端不做自动隐藏：
+     ① nav 是 sticky，translateY 只是视觉上移，文档流里那 111px 还占着，
+        收起来以后页面顶部会空出一道白，看起来像「顶端缺了一块」；
+     ② 手机手指滚动本来就抖，hide/show 来回切时 transform 动画互相打断，观感就是频闪。
+     两行高的 nav 常驻，反而更稳。 */
+  var narrow = window.matchMedia("(max-width:960px)");
+
+  var lastY = (window.scrollY || window.pageYOffset || 0);
+  var acc = 0;          // 同向累计位移，用来做滞回
   var ticking = false;
+
+  function show(){ nav.classList.remove("nav-hide"); }
+  function hide(){ nav.classList.add("nav-hide"); }
+
   window.addEventListener("scroll", function(){
     if(ticking) return;
     ticking = true;
     requestAnimationFrame(function(){
-      var y = window.pageYOffset || 0;
+      var y = window.scrollY || window.pageYOffset || 0;
+
+      if(narrow.matches){
+        /* 手机上永远显示；万一从桌面宽度缩下来时带着 nav-hide，这里顺手清掉 */
+        if(nav.classList.contains("nav-hide")) show();
+        lastY = y; acc = 0; ticking = false;
+        return;
+      }
+
       var dy = y - lastY;
-      // 顶部附近常显；下滑超过 80px 隐藏；上滑显现
-      if(dy > 4 && y > 80){ nav.classList.add("nav-hide"); }
-      else if(dy < -4 || y <= 80){ nav.classList.remove("nav-hide"); }
       lastY = y;
+
+      /* 顶部附近一律常显 */
+      if(y <= 90){ acc = 0; show(); ticking = false; return; }
+
+      /* 方向一翻就往回扣，避免在临界点来回跳 */
+      if((dy > 0 && acc < 0) || (dy < 0 && acc > 0)) acc = 0;
+      acc += dy;
+
+      /* 下滑累计 70px 才收，上滑累计 40px 才放出来。
+         原来阈值只有 4px，指尖轻微抖动就能让 nav 反复抽动。 */
+      if(acc > 70){ hide(); acc = 0; }
+      else if(acc < -40){ show(); acc = 0; }
+
       ticking = false;
     });
   }, {passive:true});
