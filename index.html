@@ -4209,7 +4209,7 @@ function showExploreNote(id, custom){
      不用原生 loop：手动回卷，才能在每轮结尾把音量收到 0、开头再推上来，
      接缝处听不出硬切。 */
   var bgm = new Audio();
-  bgm.preload  = "none";        // 等用户第一次手势才开始拉数据，不拖首屏
+  bgm.preload  = "auto";        // 进页面就要起播，得让它尽早开始拉流
   bgm.loop     = false;
   bgm.playsInline = true;
   bgm.src      = "assets/bgm.mp3";
@@ -4224,7 +4224,7 @@ function showExploreNote(id, custom){
     bgmFallbackUsed = true;
     bgm.src = "https://linziyang777.github.io/assets/bgm.mp3";
     try{ bgm.load(); }catch(e){}
-    if(bgmWanted) bgmStart();
+    bgmKick();
   });
 
   var BGM_VOL    = 0.26;        // 目标音量：背景垫乐，压得比较低
@@ -4238,6 +4238,10 @@ function showExploreNote(id, custom){
   var bgmScale   = 0;           // 开关缩放 0~1，按真实时间向 bgmWanted 逼近
   var bgmRaf     = 0;
   var bgmLastTs  = 0;
+
+  /* 自动播放的三个状态标记 */
+  var bgmSilent    = false;     // 正在「静音播着、等手势出声」
+  var bgmUnmuteOn  = false;     // 解锁手势是否已挂上
 
   /* iOS 上 audio.volume 是只读的，赋值不生效、音量会顶在 1——
      背景音乐直接以最大音量播会吵死人。所以 iOS 改走 Web Audio 的 gain。
@@ -4296,35 +4300,151 @@ function showExploreNote(id, custom){
     if(!bgmWanted && bgmScale <= 0.001 && !bgm.paused) bgm.pause();
   }
 
-  function bgmStart(){
+  /* ---- 进站即播 ----
+     浏览器默认拦「有声自动播放」，拦不住「静音自动播放」。所以三层走：
+
+       ① 直接 play()：老访客（Chrome 的媒体参与度够高）或系统已放开的环境，
+          这一下就能出声，什么都不用管。
+       ② 被拒 → 静音起播。曲子照常在走时间轴，只是没声；
+          同时挂一组一次性手势（点/触/按键/滚轮/滚动），谁先来算谁，
+          来的那一瞬间解除静音。
+       ③ 连静音都播不了（iOS 低电量模式之类）→ 手势来了直接开播。
+
+     解除静音时把开关缩放归零，让它照常走 800ms 渐入——
+     否则曲子可能已经走到半途，音量从 0 直接跳到 0.26，是「啪」的一下。 */
+  function bgmKick(){
     if(!bgmWanted) return;
     bgmWire();
     bgmLastTs = 0;
     if(!bgmRaf) bgmRaf = requestAnimationFrame(bgmFrame);
-    if(bgm.paused){
+    if(!bgm.paused) return;
+    var p = bgm.play();
+    if(p && p.catch) p.catch(function(){ bgmSilentPlay(); });
+  }
+
+  function bgmSilentPlay(){
+    if(bgmSilent || bgm.muted) return;
+    bgmSilent = true;
+    bgm.muted  = true;
+    bgmArmUnmute();               // 先挂上，哪怕这次静音也被拒，手势还能兜住
+    var p = bgm.play();
+    if(!p || !p.then) return;
+    p.then(function(){
+      /* 少数环境（Firefox 等）静音起播后就允许直接解除，试一次不亏 */
+      bgmTryUnmute();
+    }).catch(function(){});
+  }
+
+  /* 主动试解除静音：解完 60ms 看一眼元素是不是被浏览器按停了。
+     Chrome 的规矩是「静音可以自播，一解除静音就暂停」，被按停就回滚成静音继续播。 */
+  function bgmTryUnmute(){
+    if(!bgmSilent) return;
+    bgm.muted = false;
+    setTimeout(function(){
+      if(!bgmSilent) return;
+      if(bgm.paused){
+        bgm.muted = true;
+        var p = bgm.play();
+        if(p && p.catch) p.catch(function(){});
+        return;
+      }
+      bgmSilent = false;
+      bgmScale  = 0;
+      bgmLastTs = 0;
+      ensureCtx();
+      if(!bgmRaf) bgmRaf = requestAnimationFrame(bgmFrame);
+    }, 60);
+  }
+
+  /* 真正的手势到了：无条件解除静音并确保在播 */
+  function bgmUnmute(){
+    if(!bgmSilent) return;
+    bgmSilent = false;
+    bgm.muted  = false;
+    bgmScale   = 0;
+    bgmLastTs  = 0;
+    ensureCtx();                  // iOS 走 gain 通道，ctx 还挂在 suspended 就不出声
+    if(!bgmRaf) bgmRaf = requestAnimationFrame(bgmFrame);
+    if(bgm.paused && bgmWanted){
       var p = bgm.play();
-      if(p && p.catch) p.catch(function(){});   // 被自动播放策略拦下就等下一次手势
+      if(p && p.catch) p.catch(function(){});
     }
   }
+
+  function bgmArmUnmute(){
+    if(bgmUnmuteOn) return;
+    bgmUnmuteOn = true;
+    function off(){
+      document.removeEventListener("pointerdown", off, true);
+      document.removeEventListener("touchstart",  off, true);
+      document.removeEventListener("keydown",     off, true);
+      document.removeEventListener("wheel",       off, true);
+      document.removeEventListener("scroll",      off, true);
+      bgmUnmute();
+    }
+    document.addEventListener("pointerdown", off, true);
+    document.addEventListener("touchstart",  off, {capture:true, passive:true});
+    document.addEventListener("keydown",     off, true);
+    document.addEventListener("wheel",       off, {capture:true, passive:true});
+    document.addEventListener("scroll",      off, {capture:true, passive:true});
+  }
+
+  /* ---- 切走 / 熄屏就停 ----
+     tab 切走、窗口最小化、手机切到别的 App、熄屏锁屏，统一都由
+     visibilitychange 冒出来（hidden）。这里直接 pause，不做淡出——
+     人已经看不见页面了，淡出那 3 秒纯属白烧电。
+     回来时从暂停处接着放，不是从头开始。 */
+  var bgmHiddenStop = false;    // 是我们主动停的，不是用户关了声音
+  var bgmHideAt     = 0;
+
+  function bgmPageHide(){
+    if(!bgmWanted) return;
+    if(bgm.paused) return;
+    bgmHiddenStop = true;
+    bgmHideAt     = Date.now();
+    try{ bgm.pause(); }catch(e){}
+  }
+
+  function bgmPageShow(){
+    if(!bgmHiddenStop) return;
+    bgmHiddenStop = false;
+    if(!bgmWanted) return;
+    /* 短切（切个 tab 就回来）不重置缩放，否则每次都白闪一下；
+       离开久了再从 0 渐入，别一回来就「啪」地砸进来。 */
+    if(Date.now() - bgmHideAt > 2500) bgmScale = 0;
+    bgmLastTs = 0;
+    ensureCtx();
+    if(!bgmRaf) bgmRaf = requestAnimationFrame(bgmFrame);
+    if(!bgm.paused) return;
+    if(bgm.muted){              // 还没解锁过：静音续上，手势一到就出声
+      var q = bgm.play();
+      if(q && q.catch) q.catch(function(){});
+      return;
+    }
+    var p = bgm.play();
+    if(p && p.catch) p.catch(function(){ bgmSilentPlay(); });
+  }
+
+  document.addEventListener("visibilitychange", function(){
+    if(document.visibilityState === "hidden") bgmPageHide();
+    else bgmPageShow();
+  });
+  window.addEventListener("pagehide", bgmPageHide);
+  window.addEventListener("pageshow", function(e){ if(e.persisted) bgmPageShow(); });
+  document.addEventListener("freeze", bgmPageHide);   // Chrome 的页面冻结
+  document.addEventListener("resume", bgmPageShow);
 
   /* 一轮放完：回卷重来。结尾那 3.2 秒已经淡到 0，切回开头听不出接缝 */
   bgm.addEventListener("ended", function(){
     if(!bgmWanted) return;
     try{ bgm.currentTime = 0; }catch(e){}
-    bgmStart();
+    bgmKick();
   });
 
-  /* 浏览器不允许无交互自动播放，等第一次点击/按键再开声 */
-  function bgmFirstGesture(){
-    document.removeEventListener("pointerdown", bgmFirstGesture);
-    document.removeEventListener("keydown", bgmFirstGesture);
-    ensureCtx();
-    bgmStart();
-  }
-  document.addEventListener("pointerdown", bgmFirstGesture, {passive:true});
-  document.addEventListener("keydown", bgmFirstGesture);
+  /* 脚本跑到这儿就直接起播，不等任何交互 */
+  bgmKick();
 
-  window.__bgmStart = bgmStart;
+  window.__bgmStart = bgmKick;
   window.__bgmInfo = function(){
     return {
       t: +bgm.currentTime.toFixed(2),
@@ -4333,7 +4453,9 @@ function showExploreNote(id, custom){
       scale: +bgmScale.toFixed(3),
       paused: bgm.paused,
       wanted: bgmWanted,
-      wired: bgmWired
+      wired: bgmWired,
+      muted: bgm.muted,
+      silent: bgmSilent
     };
   };
 
@@ -4343,7 +4465,12 @@ function showExploreNote(id, custom){
     bgmWanted = soundOn;
     this.classList.toggle("on", soundOn);
     this.lastChild.textContent = soundOn ? "声音 ON" : "声音 OFF";
-    if(soundOn){ ensureCtx(); playTick(); bgmStart(); }
+    if(soundOn){
+      ensureCtx(); playTick();
+      bgmSilent = false;         // 手动开声，清掉静音等待态
+      bgm.muted  = false;
+      bgmKick();
+    }
     /* 关掉时不立刻 pause：交给 bgmFrame 把音量淡下去再停 */
   });
   /* 导航 hover 轻 tick */
