@@ -210,17 +210,23 @@ body::before{
 /* 纸后的天光：雾薄荷水彩 + 半色调网点，和首页动画背景同一套语言 */
 .wipe .wp-sky{
   position:absolute;inset:0;
-  background:radial-gradient(700px 420px at 86% -6%, rgba(249,239,200,.6), rgba(249,239,200,0) 70%),
-             radial-gradient(560px 380px at 6% 16%, rgba(213,175,161,.22), rgba(213,175,161,0) 72%),
-             linear-gradient(180deg,#eef4f0 0%,#e6efe9 58%,#dde9e2 100%);
+  /* 全部取自当前页的主题变量（body[data-page=…] 切页时已经换好），
+     卷轴铺开那一下，天光就是这座工坊自己的颜色 */
+  background:radial-gradient(700px 420px at 86% -6%, rgba(255,255,255,.5), rgba(255,255,255,0) 70%),
+             radial-gradient(560px 380px at 6% 16%, rgba(var(--c1-rgb),.18), rgba(var(--c1-rgb),0) 72%),
+             linear-gradient(180deg, var(--bg) 0%, var(--bg-soft) 100%);
 }
-.wipe .wp-sky::after{content:"";position:absolute;inset:0;opacity:.5;
-  background-image:radial-gradient(rgba(69,123,125,.14) 1.4px,transparent 1.5px);
+.wipe .wp-sky::after{content:"";position:absolute;inset:0;opacity:.55;
+  background-image:radial-gradient(rgba(var(--c1-rgb),.2) 1.4px,transparent 1.5px);
   background-size:13px 13px;}
 /* 卷起的纸：整张从右进、往左出。上下各留 3% 出血，转动时不会露边。 */
 .wipe .wp-sheet{
   position:absolute;top:-3%;bottom:-3%;left:-3%;right:-3%;
-  background:var(--paper);
+  /* 羊皮纸不再是近白的 --paper：纸面用 bg-soft 压一档，
+     再垫一层 c1 的晕染和一道高光，白是留出来做纸的反光 */
+  background:radial-gradient(900px 500px at 78% 6%, rgba(255,255,255,.5), rgba(255,255,255,0) 70%),
+             radial-gradient(120% 80% at 50% 115%, rgba(var(--c1-rgb),.16), rgba(var(--c1-rgb),0) 62%),
+             linear-gradient(168deg, var(--bg-soft) 0%, var(--paper) 40%, var(--bg-soft) 100%);
   border-left:3px solid rgba(107,83,53,.4);border-right:3px solid rgba(107,83,53,.4);
   box-shadow:0 30px 90px rgba(var(--ink-rgb),.4);
   transform:translateX(104%) rotate(1.4deg);will-change:transform;overflow:hidden;
@@ -1390,6 +1396,9 @@ nav.nav-hide{transform:translateY(-110%);}
   position:absolute;top:-16px;left:22px;font-family:"Zen Maru Gothic","Noto Sans SC";font-weight:900;
   font-size:14px;background:var(--ink);color:var(--c2);padding:3px 14px;border-radius:8px;
   border:2.5px solid var(--ink);transform:rotate(-1.5deg);letter-spacing:1px;
+  /* 长角标（比如「安永 · 公众号数据分析 ×2 + 竞品分析 ×1（…）」）在窄面板里会折两行，
+     折完下半截就盖在 h3 上。限宽让它老老实实在面板里折。 */
+  max-width:calc(100% - 46px);line-height:1.5;
 }
 .panel h3{font-size:21px;font-weight:900;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
 .panel h3 .badge{
@@ -2358,9 +2367,9 @@ footer .f-ghost{
   <div class="wp-sheet">
     <svg class="wp-map" viewBox="0 0 1200 675" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
       <!-- 一段往下一站去的虚线足迹，沿用地图上点状行进的语言 -->
-      <path class="wp-trail" d="M40 560 C 240 460, 420 600, 620 480 S 950 380, 1160 460" fill="none" stroke="#c96f4a" stroke-width="3.4" stroke-linecap="round" opacity=".8"/>
+      <path class="wp-trail" d="M40 560 C 240 460, 420 600, 620 480 S 950 380, 1160 460" fill="none" stroke="var(--c1)" stroke-width="3.4" stroke-linecap="round" opacity=".85"/>
       <!-- 途经点：小红叉，纸铺稳了才钉下去 -->
-      <g class="wp-x" stroke="#c96f4a" stroke-width="4.5" stroke-linecap="round">
+      <g class="wp-x" stroke="var(--c1)" stroke-width="4.5" stroke-linecap="round">
         <path d="M612 470 l18 18 M630 470 l-18 18"/>
         <path d="M1086 442 l18 18 M1104 442 l-18 18"/>
       </g>
@@ -3530,7 +3539,7 @@ footer .f-ghost{
         </div>
         <span class="sec-tag">ANALYZED</span>
       </div>
-      <div class="panel rv">
+      <div class="panel rv" style="padding-top:46px">
         <span class="cap">安永 · 公众号数据分析 ×2 + 竞品分析 ×1（2026.1.1–4.28）</span>
         <h3>四大公众号全量对比：用数据定位「高产出、效率不足」</h3>
         <p style="font-weight:500; color:rgba(var(--ink-rgb),.8); max-width:760px">对安永 vs 普华永道 / 德勤 / 毕马威的公众号做内容全量盘点——发文数、总阅读、平均阅读、头条均阅、爆款数（>8000）、高/低阅读分布与系列矩阵，再对竞品内容线逐条归因，输出可落地的优化策略。</p>
@@ -4199,9 +4208,11 @@ function showExploreNote(id, custom){
     t.className = "explore-toast";
     t.setAttribute("role","status");
     t.innerHTML = '<span class="et-cap">探险手记</span><span class="et-txt"></span>';
-    var emh = document.querySelector(".exp-map .em-head");
-    if(emh && emh.parentNode) emh.parentNode.insertBefore(t, emh.nextSibling);
-    else document.body.appendChild(t);
+    /* 必须挂 body：早先挂在第一张 .exp-map 里，而那个 section 切走时是
+       display:none —— position:fixed 在 display:none 的祖先里一样不渲染，
+       于是人在工具页 / 内容页 / 数据页就永远见不到这张提示条，
+       只有回首页才冒出来，看起来就是「时有时无」。 */
+    document.body.appendChild(t);
   }
   t.querySelector(".et-txt").textContent = msg;
   t.classList.remove("show");
