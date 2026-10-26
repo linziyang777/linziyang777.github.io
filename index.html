@@ -1868,6 +1868,15 @@ footer .f-ghost{
 
 /* ============ v24：手机端头部整理（一行控制 + 一行可横滑导航） ============ */
 /* ============ v48：手机端排版收口 ============ */
+@media (max-width:720px){
+  /* 手机端先看人、再看图。
+     桌面是「地图在上、名片在下」，可那块图在手机上光标题+手记就占掉一屏，
+     访客得滚一下才知道这站是谁的。这里把名片提到最前，地图回到它后面。
+     顺序变了，配套要做的两件事：入场那套换位动画在手机上关掉（见 __homeSwapHold），
+     否则它照旧按「地图在上」算位移，一跑就把名片顶到屏幕外。 */
+  #page-home{display:flex;flex-direction:column;}
+  #page-home > .hero{order:-1;}
+}
 @media (max-width:560px){
   /* 英文名行：桌面是 26px + .32em 字距，手机按 2.2vw 只缩到 19px，
      360 宽下整行仍要 350px，右边正好被切。降字号、收字距。 */
@@ -2384,7 +2393,7 @@ footer .f-ghost{
         <!--pnid:IZtSDqdAMV5x6QXweo3XSN--><!-- 比例尺（左下装饰） -->
         <g data-page-node-id="ocKoSBCkTh538HY51CgcAd" fill="none" opacity=".65" stroke="#6b5335" stroke-width="2" transform="translate(60,478)">
           <path data-page-node-id="wib0GSa64amPVRl3jvIrH7" d="M0 0 h120 M0 -6 v6 M40 -6 v6 M80 -6 v6 M120 -6 v6"/>
-          <text data-page-node-id="dXQPZ6BX2dVQdffEiNOVCq" class="em-serif" fill="#6b5335" font-size="11" stroke="none" text-anchor="middle" x="60" y="-12"><!--pnid:u8v4PhQmydGuZYgA8Axix6-->一百座巨构</text>
+          <text data-page-node-id="dXQPZ6BX2dVQdffEiNOVCq" class="em-serif" fill="#6b5335" font-size="11" stroke="none" text-anchor="middle" x="60" y="-12"><!--pnid:u8v4PhQmydGuZYgA8Axix6-->由你定义</text>
         </g>
         <!--pnid:c2MRx2SIIaovWQx119TpxU--><!-- 足迹航路 -->
         <path data-page-node-id="Sac7voKdsYCstTwHppi5se" class="em-trail" d="M136 372 C 220 330, 236 240, 318 196 S 500 260, 586 240 S 700 170, 738 140" fill="none" opacity=".85" stroke="#c96f4a" stroke-dasharray="1 13" stroke-linecap="round" stroke-width="3.2"/>
@@ -2872,13 +2881,13 @@ footer .f-ghost{
     <div data-page-node-id="eYqGLJaqnXAWclyoi7lkK6" class="wrap">
       <div data-page-node-id="vkQblIBrusnTyFqI93Zv9n" class="sec-head rv">
         <div data-page-node-id="Rn5ylHv5lW5l1wp9nDLBPG">
-          <div data-page-node-id="AUWlNlgITeLD44oSPaQgBQ" class="sec-en"><!--pnid:5DukW1Zuj4CTJuLxNmPZ9A-->PROJECT 03 · 美团行家 · SKILL 机制</div>
-          <h2 data-page-node-id="Y4G8rGcSGl7ONhaQYzPnKl" class="sec-title"><!--pnid:ExK0fx0fcjKy36g7Lh7PR4-->由你定义</h2>
+          <div data-page-node-id="AUWlNlgITeLD44oSPaQgBQ" class="sec-en"><!--pnid:5DukW1Zuj4CTJuLxNmPZ9A-->PROJECT 03 · Skill 功能设计</div>
+          <h2 data-page-node-id="Y4G8rGcSGl7ONhaQYzPnKl" class="sec-title"><!--pnid:ExK0fx0fcjKy36g7Lh7PR4-->美团行家 · Skill 功能</h2>
         </div>
         <span data-page-node-id="ngq6BgqoISP8nMPdYn0MA3" class="sec-tag"><!--pnid:2rs9lKhb0MaLeKFBUOYhJT-->LOOP</span>
       </div>
       <div data-page-node-id="1NaRZl199NBvgSc4iIUfHP" class="panel rv">
-        <span data-page-node-id="9SKI7QR9RNby6lGipTXjgw" class="cap"><!--pnid:UEJG4XOiBehHkKYGS2gKQc-->共创 CO-CREATE</span>
+        <span data-page-node-id="9SKI7QR9RNby6lGipTXjgw" class="cap"><!--pnid:UEJG4XOiBehHkKYGS2gKQc-->闭环 LOOP</span>
         <p data-page-node-id="Ba6Lce3ONBhYh08kq2iMYT" style="font-weight:500; color:rgba(var(--ink-rgb),.8); max-width:760px; margin-bottom:6px"><!--pnid:2ausrRYl4KEtkdry1Bkuj3-->
           Skill 该做什么，不是关起门来拍板的事。平台上有 1 万+ 注册用户，他们想学什么、卡在哪一步，内测群里的原话最准——边界本该由用的人来划。我做的，是把原话变成规则、把规则变成能上线的东西：独立写完管理员后台 PRD（角色判定、字段设计、风险对策，改了两轮），参照平台真实数据结构设计数据表，再用 NoCode + Supabase 从纸面搭到线上，33 项数据库校验全部通过。
         </p>
@@ -2962,7 +2971,7 @@ footer .f-ghost{
         <!--pnid:KROWXPXlcdwyu4Law9eL9Y--><!-- 比例尺（左下装饰） -->
         <g data-page-node-id="Ie0zxOHsNjzKFt438yzyTo" fill="none" opacity=".65" stroke="#6b5335" stroke-width="2" transform="translate(60,478)">
           <path data-page-node-id="6zWyFmuMjDhDs01L5gsp1i" d="M0 0 h120 M0 -6 v6 M40 -6 v6 M80 -6 v6 M120 -6 v6"/>
-          <text data-page-node-id="KBUWdLV8UREVd8ykgYdoXv" class="em-serif" fill="#6b5335" font-size="11" stroke="none" text-anchor="middle" x="60" y="-12"><!--pnid:hzlrZ4RsP7dUgqMthzmCpm-->一百座巨构</text>
+          <text data-page-node-id="KBUWdLV8UREVd8ykgYdoXv" class="em-serif" fill="#6b5335" font-size="11" stroke="none" text-anchor="middle" x="60" y="-12"><!--pnid:hzlrZ4RsP7dUgqMthzmCpm-->由你定义</text>
         </g>
         <!--pnid:FcFPv4YZeKkq09w3meTuiD--><!-- 足迹航路 -->
         <path data-page-node-id="WshOPdAUvyUyYZatYWI1xd" class="em-trail" d="M136 372 C 220 330, 236 240, 318 196 S 500 260, 586 240 S 700 170, 738 140" fill="none" opacity=".85" stroke="#c96f4a" stroke-dasharray="1 13" stroke-linecap="round" stroke-width="3.2"/>
@@ -5066,6 +5075,9 @@ function showExploreNote(id, custom){
     try{
       if (reducedMotion) return;
       if (current !== "home") return;
+      /* 手机端名片本来就在最前（CSS 里 order:-1），没有可换的位；
+         这里再算一遍位移反而是错的。 */
+      if (window.matchMedia("(max-width:720px)").matches) return;
       var page = document.getElementById("page-home");
       var hero = page.querySelector(".hero");
       var map = page.querySelector(".exp-map");
