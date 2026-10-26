@@ -806,11 +806,15 @@ html.wx-lite .shot:hover{transform:none;}
 .next-fab:hover{transform:scale(1.08) rotate(-4deg);background:var(--c1);color:#fff;}
 .next-fab .nf-next{font-size:10px;letter-spacing:.24em;}
 .next-fab .nf-arrow{font-size:24px;line-height:1;margin-top:2px;}
-.next-fab .nf-to{font-family:"Zen Maru Gothic","Noto Sans SC";font-weight:900;font-size:12px;margin-top:1px;}
+/* 12px 时「AI 产品开发」这六个字宽 62px，圆在那一行的弦宽只有 64，
+   差一点就被弧线切掉；收到 11px 稳稳落在里面。 */
+.next-fab .nf-to{font-family:"Zen Maru Gothic","Noto Sans SC";font-weight:900;font-size:11px;letter-spacing:0;margin-top:1px;max-width:100%;}
 @media (max-width:560px){
   /* 手机端：NEXT 章节钮减重，少遮内容 */
-  .next-fab{width:54px;height:54px;right:8px;bottom:calc(10px + env(safe-area-inset-bottom));opacity:.94;}
-  .next-fab .nf-to{font-size:10px;}
+  .next-fab{width:56px;height:56px;right:8px;bottom:calc(10px + env(safe-area-inset-bottom));opacity:.94;}
+  /* 手机端只留 NEXT + 箭头：圆直径 56，弦宽装不下「AI 产品开发」六个字，
+     硬塞就会被弧线切掉一条边。去哪儿点一下就知道了，标签留给桌面。 */
+  .next-fab .nf-to{display:none;}
   .next-fab .nf-arrow{font-size:16px;}
 
   /* 探险手记便签化的手机规则不写在这里：.hero-note 的桌面版定义在本段之后，
@@ -1149,6 +1153,30 @@ min-height:min(88vh,840px);display:flex;flex-direction:column;justify-content:ce
    SVG 默认 overflow:hidden，这些元素连同上边线与折角会被裁掉一半，
    看起来就是「顶部边框不全」。放开裁剪，让它们完整画出来。 */
 .em-svg{width:100%;height:auto;display:block;overflow:visible;}
+/* 首页那张地图是首屏主角，得让人一眼看全，不用滚。
+   宽屏下按视口高度反算尺寸：先给 canvas 一个高度，宽度按 viewBox 比例（900:520）收，
+   两侧留白居中；SVG 自身 preserveAspectRatio 会等比缩放到框里。
+   探险手记本来压在地图上方，占掉 186px —— 首屏装不下大半是它挤的。
+   这里改成纵向排列，把手记挪到图下面当图注，让地图先占满。
+
+   那个常数是量出来的，不是估的（1280 宽实测）：
+     导航 78 + 上边距 14 + 标题 77+8 + 图注 10+25 = 212
+   再留 27 给行高浮动，取 239。之前写 196 只算了图自己的高度，
+   720p / 768p 下地图右下角会多出 80 多像素，正好差一截露不全。
+   （提示条已经从流里拿出来浮着，不再占这 67px。） */
+@media (min-width:961px){
+  #page-home .exp-map{display:flex;flex-direction:column;margin-top:14px;}
+  #page-home .exp-map .em-head{order:1;margin-bottom:8px;}
+  #page-home .exp-map .em-title{font-size:clamp(19px,2.2vw,24px);}
+  #page-home .exp-map .em-canvas{
+    --em-h:clamp(300px,calc(100vh - 239px),640px);
+    order:2;flex:none;align-self:center;
+    height:var(--em-h);
+    width:min(100%,calc(var(--em-h) * 1.7308));
+  }
+  #page-home .exp-map .em-svg{width:100%;height:100%;}
+  #page-home .exp-map .hero-note{order:3;margin:10px 0 0;font-size:12.5px;line-height:1.55;padding:3px 0 3px 12px;}
+}
 .em-serif{font-family:Georgia,"Songti SC","Noto Serif SC",serif;}
 .em-trail{animation:emDash 1.8s ease-out both;}
 @keyframes emDash{from{stroke-dashoffset:640;}to{stroke-dashoffset:0;}}
@@ -1188,9 +1216,15 @@ min-height:min(88vh,840px);display:flex;flex-direction:column;justify-content:ce
   .em-lbl{font-size:14px;}
   .em-sub{font-size:9px;}
 }
-/* 探险手记 toast（地图上方） */
+/* 探险手记 toast。
+   原来是插在 .em-head 后面的流内方块：冒出来一次把地图整体顶下去 53+14，
+   3.2 秒后自己消失、地图再弹回来 —— 首屏高度算得再准也白算。
+   改成浮团：固定挂底部中间，进出都不碰文档流；bottom 留 96 是给右下角的
+   NEXT 圆钮让位（手机上那钮在 10~70 之间）。 */
 .explore-toast{
-  position:static;margin:0 0 14px;max-width:100%;z-index:1;
+  position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));
+  transform:translateX(-50%);
+  margin:0;max-width:min(90vw,560px);z-index:96;
   display:none;align-items:center;gap:10px;
   background:var(--paper);border:3px solid var(--ink);border-radius:14px;
   box-shadow:0 10px 26px rgba(var(--ink-rgb),.22);padding:10px 16px;
@@ -1198,7 +1232,9 @@ min-height:min(88vh,840px);display:flex;flex-direction:column;justify-content:ce
   pointer-events:none;
 }
 .explore-toast.show{display:flex;animation:toastIn .32s cubic-bezier(.3,1.4,.5,1) both;}
-@keyframes toastIn{from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:none;}}
+/* 进场只改 opacity 和纵向位移，水平居中那半截 translateX 得一直留着，
+   否则动画一跑就把它顶回左边缘。 */
+@keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(10px);}to{opacity:1;transform:translateX(-50%);}}
 .explore-toast .et-cap{
   flex:none;font-family:"Zen Maru Gothic","Noto Sans SC";font-weight:900;font-size:11px;
   background:var(--c2);border:2px solid var(--ink);border-radius:8px;padding:2px 8px;
@@ -1767,7 +1803,11 @@ footer .f-ghost{
 
 /* ============ 响应式 ============ */
 @media (max-width:960px){
-  .hero-grid{grid-template-columns:1fr;}
+  /* 只写 1fr 时，栅格列的自动下限是「内容的最长不可断行宽度」。
+     上面那行 LIAM · PRODUCT OPERATIONS 原来用 nbsp 连成一整串，又带 .32em 字距，
+     360 宽下能顶到 350px —— 整列被撑宽，正文右缘跟着溢出，被 html 的 overflow-x:clip 切掉。
+     加 0 下限，列就能老实收到容器宽度。 */
+  .hero-grid{grid-template-columns:minmax(0,1fr);}
   .idcard{max-width:320px;}
   .deck{grid-template-columns:1fr;}
   .deck-card{transform:none !important;}
@@ -1827,6 +1867,17 @@ footer .f-ghost{
 @media (prefers-reduced-motion: reduce){.mega-bg *{animation:none!important}}
 
 /* ============ v24：手机端头部整理（一行控制 + 一行可横滑导航） ============ */
+/* ============ v48：手机端排版收口 ============ */
+@media (max-width:560px){
+  /* 英文名行：桌面是 26px + .32em 字距，手机按 2.2vw 只缩到 19px，
+     360 宽下整行仍要 350px，右边正好被切。降字号、收字距。 */
+  .hero-en{font-size:14.5px !important;letter-spacing:.2em !important;}
+  /* 两个按钮并排：360 宽下原文案 17px + 30px 内边距合计 335px，差一点就换行，
+     换行后左一个右一个各占一行更难看。收到 15.5px / 18px 内边距，一排放下。 */
+  .cta-row{gap:10px;}
+  .btn{font-size:15.5px;padding:11px 18px;border-width:2.5px;border-radius:12px;}
+  .pill{font-size:13.5px;padding:4px 14px;border-width:2.5px;}
+}
 @media (max-width:560px){
   nav{gap:8px;padding:10px 14px;}
   .nav-logo{font-size:18px;padding:3px 10px;border-width:2.5px;}
@@ -2472,7 +2523,7 @@ footer .f-ghost{
     <div data-page-node-id="FgYLmo4let9EAAaLlWdVSr" class="wrap hero-grid">
       <div data-page-node-id="wO963rfOomMalAZdYAmGWd">
         <div data-page-node-id="OwMjzIft4OdRpPAHILhQuO" class="hero-kicker"><span data-page-node-id="NE4BJYgyGwPoMIWrAAZ5yU" class="dot"></span><!--pnid:BWtipdMHuNprjAwQ7OrXQK-->2027 届校招 · 求职进行中</div>
-        <div data-page-node-id="SNhdnACM9nOaM5WPBpsuRG" class="hero-en serif-en" style="font-size:clamp(19px,2.2vw,26px); letter-spacing:.32em; color:var(--title); opacity:.85"><!--pnid:C4Bjka7vwdIH92P942bY1g-->LIAM&nbsp;·&nbsp;PRODUCT&nbsp;OPERATIONS</div>
+        <div data-page-node-id="SNhdnACM9nOaM5WPBpsuRG" class="hero-en serif-en" style="font-size:clamp(19px,2.2vw,26px); letter-spacing:.32em; color:var(--title); opacity:.85"><!--pnid:C4Bjka7vwdIH92P942bY1g-->LIAM · PRODUCT OPERATIONS</div>
         <div data-page-node-id="Argc8x2279OAiiVmXNbIvO" class="hero-name"><!--pnid:cD8rfBaMT8TScGSGc480PH-->林子炀</div>
         <div data-page-node-id="i253xCGTqdS6pP7NTlqV9v" class="hero-role">
           <span data-page-node-id="vGet16clg5bXWOJHidLSWB" class="pill solid"><!--pnid:B305bsm1SvXJuvnguVld7Q-->AI · 产品运营</span>
@@ -2480,10 +2531,11 @@ footer .f-ghost{
           <span data-page-node-id="NQgCMHavh8QjQfh8dM9Euj" class="pill"><!--pnid:UwCBJTZvizWSMCBBnpBiyi-->用户与内容运营</span>
         </div>
         <p data-page-node-id="dB3nHDTOzI6zTYAFAOeXyp" class="hero-desc"><!--pnid:gj0V6wpunhSsxlR0lBdqcv-->
-          吉林大学工商管理 2027 届，专业排名 <b data-page-node-id="Ltej67ySceaXz0AXHr7yoU"><!--pnid:1932y69c4W6AmiaVRlBX0a-->前 30%</b><!--pnid:VUgqB5EKtIIwmIriZR31JL-->。
-          在美团做 AI 学习产品运营：用提示词工程 + RAG 搭 AI 学习助手，咨询单量环比 <b data-page-node-id="QS5ecxyTWRyQN4UU9FZzLw"><!--pnid:U8mFlpEMl7bKxq0BTW6Kja-->+367%</b><!--pnid:3wVLK9UP6Vck34TO4kCIQv-->；
-          在安永参与消博会品牌传播，项目曝光近 <span data-page-node-id="hd47w01" style="white-space:nowrap">47 万</span>；自营短视频与二手电商 3 年，播放 <span data-page-node-id="hd25w01" style="white-space:nowrap">25 万+</span>。
-          产品、内容、活动、数据全链路跑过——<b data-page-node-id="qJtVwzwbR9uI3u1BVoEmqN"><!--pnid:vIIjTTcglmssOJDuTru4QW-->凡经我手，皆成作品</b><!--pnid:sSaFZsk00xkSLbr9n5HAWu-->。
+          从中国人寿的电话外呼，到美团的 AI 学习产品——几段实习做的其实是同一件事：把模糊的麻烦，变成能用的东西。
+          在美团，用提示词工程 + RAG 搭出 AI 学习助手，咨询单量环比 <b data-page-node-id="QS5ecxyTWRyQN4UU9FZzLw"><!--pnid:U8mFlpEMl7bKxq0BTW6Kja-->+367%</b><!--pnid:3wVLK9UP6Vck34TO4kCIQv-->；
+          在安永做消博会传播，项目曝光近 <span data-page-node-id="hd47w01" style="white-space:nowrap">47 万</span>；自己的短视频与二手号跑了三年，播放 <span data-page-node-id="hd25w01" style="white-space:nowrap">25 万+</span>。
+          吉林大学工商管理 2027 届，专业排名 <b data-page-node-id="Ltej67ySceaXz0AXHr7yoU"><!--pnid:1932y69c4W6AmiaVRlBX0a-->前 30%</b><!--pnid:VUgqB5EKtIIwmIriZR31JL-->——产品、内容、活动、数据，这条链路我从头走到尾。
+          <b data-page-node-id="qJtVwzwbR9uI3u1BVoEmqN"><!--pnid:vIIjTTcglmssOJDuTru4QW-->凡经我手，皆成作品</b><!--pnid:sSaFZsk00xkSLbr9n5HAWu-->。
         </p>
         <div data-page-node-id="rYwLJ4w1TYdVq5hwKbM3Gl" class="cta-row">
           <a data-page-node-id="UI3XgQsLlNBzNl7RlceVMH" class="btn" href="#tool"><!--pnid:GXDKr8SwMgf1g1zLvmxPsk-->查看我的作品
@@ -2709,15 +2761,15 @@ footer .f-ghost{
   </div>
 </section>
 
-<!--pnid:FHYHeYutvoomjuAGqIeKGa--><!-- ================= 工具落地 ================= -->
+<!--pnid:FHYHeYutvoomjuAGqIeKGa--><!-- ================= AI 产品开发 ================= -->
 <section data-page-node-id="WSnfsTWRHltHEf8lCkMkVy" class="page" id="page-tool">
   <div data-page-node-id="7lcprgcH0sg8Gc6uOHxp78" class="page-hero">
     <div data-page-node-id="SpXhJkf4cafkqTHyrG8oOo" class="vt"><!--pnid:pSFdrXASWWvfzJH40tcFrg-->工欲善其事<i data-page-node-id="PLrd0GCxbakKvFIcNPYinX"><!--pnid:jy1VnxYRkJTMzKufewfF8y-->·</i><!--pnid:MgSO98Xjla6QPGp44WrQrb-->必先利其器</div>
     <div data-page-node-id="148Un0z5hfSL1S6lXfeMfH" class="chap-no"><!--pnid:6STiDEjlHbfbKLIgdaR0aT-->02</div>
     <div data-page-node-id="AwAGxxMyiYEUaHLD9tLCvA" class="wrap">
       <div data-page-node-id="xcYQJJ2kbhZrueXtiEuP4D" class="kick"><!--pnid:v88G7jLI1q0KGXr7323j3d-->卷一 · 成器 <span data-page-node-id="q8VNoMoHZm5RsTgGaRuibr" class="kick-en"><!--pnid:D2WcOJTxhVf9xnArcZClcU-->FORGE — TOOLS &amp; SYSTEMS</span></div>
-      <h1 data-page-node-id="YIiexco69PQLgfgOb1YuGd"><!--pnid:tCVWSl4BGWhJilrciq7nPF-->工具落地</h1>
-      <p data-page-node-id="l2tDnBkquq6eUqsSL01oOU" class="sub"><!--pnid:qQgMcRb8IHdsTDbVS5rw1M-->痛点是<b data-page-node-id="QxWV9TI11mVQTZamDdD4K6"><!--pnid:Xk0g5eCVIpxXOduudR5TGM-->最好的立项书</b><!--pnid:LR8hkRD7D5xPD9n64iUKiX-->。在美团萌芽校招生长计划里，我把 SOP 繁杂、纸质合同易乱、评奖靠人工核算这些麻烦——一个个变成了线上系统与看板；轮到我自己学东西，做的则是一个会批改、会答疑的 <b data-page-node-id="subAiAgent01"><!--pnid:subAiAgent01a-->AI 学习助手</b><!--pnid:subAiAgent01b-->。</p>
+      <h1 data-page-node-id="YIiexco69PQLgfgOb1YuGd"><!--pnid:tCVWSl4BGWhJilrciq7nPF-->AI 产品开发</h1>
+      <p data-page-node-id="l2tDnBkquq6eUqsSL01oOU" class="sub"><!--pnid:qQgMcRb8IHdsTDbVS5rw1M-->三件东西，三种「把麻烦变工具」：运营助手把散在各人手里的经验收成系统，沙盘计算系统把纸笔换成线上，Skill 机制把「做什么」交回给用的人。共同点只有一个——<b data-page-node-id="QxWV9TI11mVQTZamDdD4K6"><!--pnid:Xk0g5eCVIpxXOduudR5TGM-->先找到真痛点，再动手</b><!--pnid:LR8hkRD7D5xPD9n64iUKiX-->。至于我自己学东西，用的是另一个会批改、会答疑的 <b data-page-node-id="subAiAgent01"><!--pnid:subAiAgent01a-->AI 学习助手</b><!--pnid:subAiAgent01b-->。</p>
       <div data-page-node-id="r8BODQbDsem332EqXBp1bh" class="mini-stats">
         <div data-page-node-id="rIj7Cz6nXKYqRtOVmIWtbm" class="mini-stat rv"><em data-page-node-id="zsbW2caW0jB3GOO3UXuaTC"><!--pnid:qtY06n1IaYgYnTtV8blryc-->0→1</em><span data-page-node-id="QClluFJsjSe4MwotqG1mz8"><!--pnid:u1rknWZRvsCwvapUeLj9bE-->沙盘计算系统自发立项</span></div>
         <div data-page-node-id="DHJR4udFs5U4dV2lgknitK" class="mini-stat rv d1"><em data-page-node-id="C7FLv3xHskbmjtyp3NeyBJ"><!--pnid:94QnTyKcMJfKI82UJsTUVO-->4</em><span data-page-node-id="gIGlsyhpNPBJZfRlkmOWty"><!--pnid:TICJZLVUxA8uv9Qx69VjD3-->运营助手模块</span></div>
@@ -2748,7 +2800,7 @@ footer .f-ghost{
         <span data-page-node-id="vTdo9wdrxBqdGNIRn4xNQH" class="cap"><!--pnid:CXwUhOtIozBI9NwIUCNAqH-->背景 BACKGROUND</span>
         <div data-page-node-id="XBRFb8EBIPVfjvwpFPRMDG" class="bubble"><!--pnid:vFX8oNg6atyBbN4e3aB200-->「SOP 繁杂、负责人轮换经验断层、话术分散……」——每次交接都像重新开局。</div>
         <p data-page-node-id="37TH7fknrPnMHWwSTuPXKQ" style="font-weight:500; color:rgba(var(--ink-rgb),.8); max-width:760px"><!--pnid:zb64g1f6QqiW9Vf04pFzyp-->
-          与 mentor 对齐优先级后，我独立完成运营助手的 4 个模块，把散落各处的经验沉淀成可复用的系统能力。
+          和 mentor 对齐优先级后，我独立做完 4 个模块。它们解决的是同一件事：负责人一换，经验不再跟着人走。
         </p>
         <div data-page-node-id="vRWXpRSr6ncWP6cWOE2o64" class="mod-grid" style="margin-top:26px">
           <div data-page-node-id="9X3x1rylQ9aqEvlBoif7Vh" class="mod"><span data-page-node-id="ovwhrOVWpxKsnhipij03yJ" class="no"><!--pnid:QS3EdPk6F4K0I2zfplKZre-->01</span><h4 data-page-node-id="EANuxxMmCdzFa7Nm6rVuoS"><!--pnid:qigNABDlbTqau2iHlwcN23-->SOP 自动生成个人待办</h4><p data-page-node-id="zZItZ78QObFlkS4WezKcMt"><!--pnid:zWU1DnudU33aT5tqcKqZxP-->把冗长 SOP 拆解为按人自动生成的待办清单，负责人打开即知此刻该做什么，降低交接成本。</p><div data-page-node-id="Y8BHVd1vyEMOZfEtaInnzd" class="tags"><i data-page-node-id="CnAwGv1RBZu5enhvRQjsEg"><!--pnid:GMkTaf3kFl1C4h45uAIONo-->SOP</i><i data-page-node-id="uSa6eFic2gnj617JrdvPk0"><!--pnid:67hEkPQA8aek3yeByk7jy1-->待办自动化</i></div></div>
@@ -2783,7 +2835,7 @@ footer .f-ghost{
         <span data-page-node-id="VHxNijYda4nI9RxSvyhtcC" class="cap"><!--pnid:p0FiBimwlr72P7jLbu8tN7-->立项 PITCH</span>
         <div data-page-node-id="UJqON3xOOq60oLjhsZ1bVH" class="bubble r"><!--pnid:62dTF753dEMq5U3KmeGtFF-->纸质合同易乱、评奖依赖人工核算——这个项目，我自己立项。</div>
         <p data-page-node-id="jky928okFCiuTNeT0348ZV" style="font-weight:500; color:rgba(var(--ink-rgb),.8); max-width:760px"><!--pnid:QwohssLqEXBv1wi8ntumfs-->
-          针对沙盘游戏中的交易与评奖痛点，我用 AI Coding 从 0 到 1 搭出线上系统：试运行保留纸质兜底，逐场迭代补全情景与计算逻辑，最终支持大屏投屏——成绩统奖从「人工核算半小时」变成「一键出结果」。
+          沙盘场上，一张纸合同、一次人工算奖，都是会出错的环节。我用 AI Coding 从 0 搭出线上系统：试运行先留纸质兜底，每场结束补一次情景与计算逻辑，最后加上大屏投屏——成绩统奖从「人工核算半小时」变成「一键出结果」。
         </p>
         <div data-page-node-id="HQMISWnsnclVJaq1CtyvhO" class="flow">
           <div data-page-node-id="rQrq4Ls9x06rEunpDKhWoR" class="step"><!--pnid:ZkYvltfFZe4vmu4qI4sNPI-->交易登记<small data-page-node-id="4TVXBLBmJyxz4JLbAJ4s1U"><!--pnid:1u8KJxWCUcdeDxRLbrhGcx-->合同录入线上化</small></div><span data-page-node-id="s0w0GefUjRJF2WaIcLzdCs" class="arr"><!--pnid:PEq0BQKxKSnzKQE9ys8shX-->➜</span>
@@ -2820,23 +2872,23 @@ footer .f-ghost{
     <div data-page-node-id="eYqGLJaqnXAWclyoi7lkK6" class="wrap">
       <div data-page-node-id="vkQblIBrusnTyFqI93Zv9n" class="sec-head rv">
         <div data-page-node-id="Rn5ylHv5lW5l1wp9nDLBPG">
-          <div data-page-node-id="AUWlNlgITeLD44oSPaQgBQ" class="sec-en"><!--pnid:5DukW1Zuj4CTJuLxNmPZ9A-->PROJECT 03 · Skill 功能设计</div>
-          <h2 data-page-node-id="Y4G8rGcSGl7ONhaQYzPnKl" class="sec-title"><!--pnid:ExK0fx0fcjKy36g7Lh7PR4-->美团行家 · Skill 功能</h2>
+          <div data-page-node-id="AUWlNlgITeLD44oSPaQgBQ" class="sec-en"><!--pnid:5DukW1Zuj4CTJuLxNmPZ9A-->PROJECT 03 · 美团行家 · SKILL 机制</div>
+          <h2 data-page-node-id="Y4G8rGcSGl7ONhaQYzPnKl" class="sec-title"><!--pnid:ExK0fx0fcjKy36g7Lh7PR4-->由你定义</h2>
         </div>
         <span data-page-node-id="ngq6BgqoISP8nMPdYn0MA3" class="sec-tag"><!--pnid:2rs9lKhb0MaLeKFBUOYhJT-->LOOP</span>
       </div>
       <div data-page-node-id="1NaRZl199NBvgSc4iIUfHP" class="panel rv">
-        <span data-page-node-id="9SKI7QR9RNby6lGipTXjgw" class="cap"><!--pnid:UEJG4XOiBehHkKYGS2gKQc-->闭环 LOOP</span>
+        <span data-page-node-id="9SKI7QR9RNby6lGipTXjgw" class="cap"><!--pnid:UEJG4XOiBehHkKYGS2gKQc-->共创 CO-CREATE</span>
         <p data-page-node-id="Ba6Lce3ONBhYh08kq2iMYT" style="font-weight:500; color:rgba(var(--ink-rgb),.8); max-width:760px; margin-bottom:6px"><!--pnid:2ausrRYl4KEtkdry1Bkuj3-->
-          在美团行家 AI 学习产品中参与 Skill 功能设计：从用户反馈中做需求分析，输出 PRD 并跟进上线，形成完整的产品闭环。
+          Skill 该做什么，不是关起门来拍板的事。平台上有 1 万+ 注册用户，他们想学什么、卡在哪一步，内测群里的原话最准——边界本该由用的人来划。我做的，是把原话变成规则、把规则变成能上线的东西：独立写完管理员后台 PRD（角色判定、字段设计、风险对策，改了两轮），参照平台真实数据结构设计数据表，再用 NoCode + Supabase 从纸面搭到线上，33 项数据库校验全部通过。
         </p>
         <div data-page-node-id="DUWtdWx7wwQlOBbQSHzwTE" class="flow">
-          <div data-page-node-id="NPyIO54xz8zc3nAnyRAHQa" class="step"><!--pnid:6QYa1dCVmoYOJMfA6m5oWs-->用户反馈<small data-page-node-id="NnrHRFXGp56YwjvgmY1xj7"><!--pnid:mp40JaoQKZZiEZCKQFNW6p-->内测社群声音</small></div><span data-page-node-id="jqhEHEitUhchD1R6Vy0Wjv" class="arr"><!--pnid:YgSy9tAaLMbxTJioz7voN8-->➜</span>
-          <div data-page-node-id="iVSZCZt07dMMxpwESqypG3" class="step"><!--pnid:JAyZ1Aq77Ydroqqn53gzMH-->需求分析<small data-page-node-id="Ra8yTnQYiRyEEGHhvohKkj"><!--pnid:UOOalCBHvBdVYBrT3OMm1R-->筛选与定义</small></div><span data-page-node-id="y5YOuzRRlpSVBrIU9bXvaN" class="arr"><!--pnid:hZsCPIn6Vmka3f48kuKk2Y-->➜</span>
-          <div data-page-node-id="rT3I6Xl61xs9Pbiy6OR2aP" class="step"><!--pnid:qX5jgNPIpN5ROP9bDztmZW-->输出 PRD<small data-page-node-id="x3d1yDrBDuWvg7ukOjgimM"><!--pnid:8LZJWjyfEtxS1ryoSNcV54-->方案与逻辑</small></div><span data-page-node-id="j6i3j9vZq8C8XyfNb53j2Y" class="arr"><!--pnid:2Oyn5yM3sMKoGklYk8xgzh-->➜</span>
-          <div data-page-node-id="dW7WmzfSc93PBBIXu1hvEL" class="step"><!--pnid:BEjQONnANLjJRszdGyewzV-->跟进上线<small data-page-node-id="IIAcGmWVd6ernPbIcNFkXR"><!--pnid:BUkCWNza3FuO5KmrCyAFDO-->联动产研发版</small></div>
+          <div data-page-node-id="NPyIO54xz8zc3nAnyRAHQa" class="step"><!--pnid:6QYa1dCVmoYOJMfA6m5oWs-->听见需求<small data-page-node-id="NnrHRFXGp56YwjvgmY1xj7"><!--pnid:mp40JaoQKZZiEZCKQFNW6p-->内测群里的原话</small></div><span data-page-node-id="jqhEHEitUhchD1R6Vy0Wjv" class="arr"><!--pnid:YgSy9tAaLMbxTJioz7voN8-->➜</span>
+          <div data-page-node-id="iVSZCZt07dMMxpwESqypG3" class="step"><!--pnid:JAyZ1Aq77Ydroqqn53gzMH-->写清规则<small data-page-node-id="Ra8yTnQYiRyEEGHhvohKkj"><!--pnid:UOOalCBHvBdVYBrT3OMm1R-->角色 · 字段 · 风险</small></div><span data-page-node-id="y5YOuzRRlpSVBrIU9bXvaN" class="arr"><!--pnid:hZsCPIn6Vmka3f48kuKk2Y-->➜</span>
+          <div data-page-node-id="rT3I6Xl61xs9Pbiy6OR2aP" class="step"><!--pnid:qX5jgNPIpN5ROP9bDztmZW-->自己搭出来<small data-page-node-id="x3d1yDrBDuWvg7ukOjgimM"><!--pnid:8LZJWjyfEtxS1ryoSNcV54-->NoCode + Supabase</small></div><span data-page-node-id="j6i3j9vZq8C8XyfNb53j2Y" class="arr"><!--pnid:2Oyn5yM3sMKoGklYk8xgzh-->➜</span>
+          <div data-page-node-id="dW7WmzfSc93PBBIXu1hvEL" class="step"><!--pnid:BEjQONnANLjJRszdGyewzV-->校验上线<small data-page-node-id="IIAcGmWVd6ernPbIcNFkXR"><!--pnid:BUkCWNza3FuO5KmrCyAFDO-->33 项测试 · 2 轮迭代</small></div>
         </div>
-        <div data-page-node-id="heUdlDmPPA1y9P93mLB92q" class="bubble o" style="margin-top:22px"><!--pnid:c0zPcGO8Xj47hs1nscDIdt-->同时覆盖内测、社群、专题节点 3 条运营线，并用内容供给验证「内容驱动活跃」的策略假设。</div>
+        <div data-page-node-id="heUdlDmPPA1y9P93mLB92q" class="bubble o" style="margin-top:22px"><!--pnid:c0zPcGO8Xj47hs1nscDIdt-->上线不是终点。同期还并着内测、社群、专题 3 条运营线，用内容供给去验证「内容驱动活跃」这个假设——产品和运营，本来就是一件事的两头。</div>
       </div>
       <div data-page-node-id="IbQN0yLXAqfFaScoRBp1jx" class="exp-map">
     <div data-page-node-id="9nvI2GepU5LMk1T1QCv3jE" class="em-head">
@@ -3003,7 +3055,7 @@ footer .f-ghost{
     <div data-page-node-id="lCQ0t3eNCKL8gNvETphjNv" class="wrap">
       <div data-page-node-id="euiyWa0VUi7c19bJCzgQI0" class="kick"><!--pnid:weMQsorxLdqd6oiIrIJT4k-->卷二 · 远声 <span data-page-node-id="B1JXmxqCD9Ymh6fAqPT4Yt" class="kick-en"><!--pnid:EdODRDE2donr0mpwQ38o39-->ECHO — CONTENT &amp; MEDIA</span></div>
       <h1 data-page-node-id="ehfiOqwbqUcGAWgjMkbIPK"><!--pnid:ursrDGbFpqtdrIqjns0tcW-->内容运营</h1>
-      <p data-page-node-id="lmod0qKLO64bDUJrf9uWIL" class="sub"><!--pnid:faEbqRLYWKgwmgbZUxxf6B-->从<b data-page-node-id="k6ZNaFJMNogQ1bLLriHyEY"><!--pnid:2KgmK6wZju0XOEbEZ5Haiz-->安永的 40+ 篇推文</b><!--pnid:B68oICa3G7pwJyZMY82L0N-->到个人账号 25 万+ 播放，再到 10 人新媒体团队——选题、剪辑、排版、发布，我跑过内容生产的每一个环节。</p>
+      <p data-page-node-id="lmod0qKLO64bDUJrf9uWIL" class="sub"><!--pnid:faEbqRLYWKgwmgbZUxxf6B-->内容这行，我从最底下的活干起：排版、剪辑、发布，一直做到带 10 人团队定选题。从<b data-page-node-id="k6ZNaFJMNogQ1bLLriHyEY"><!--pnid:2KgmK6wZju0XOEbEZ5Haiz-->安永的 40+ 篇推文</b><!--pnid:B68oICa3G7pwJyZMY82L0N-->到个人账号 25 万+ 播放，再到 10 人新媒体团队——内容生产的每个环节，我都亲手跑过一遍。</p>
       <div data-page-node-id="okywVwY7ppQmC5ymyfxjuc" class="mini-stats">
         <div data-page-node-id="9IGzTY6IrLtGwYTobgRE6n" class="mini-stat rv"><em data-page-node-id="UOWWeAu0YQhZnB70rvOnro"><!--pnid:TtcusZrOhOJZ7mu7K3X2Fs-->40+</em><span data-page-node-id="TPN2py4YrjNWEYHMrQJmuk"><!--pnid:LhHjoH3Zz2JS4EndYErLZx-->篇公众号推文</span></div>
         <div data-page-node-id="Jl35O1GUm90Eo6bcXwYrpN" class="mini-stat rv d1"><em data-page-node-id="9282oQ8Y4zF7paixKzzxN5"><!--pnid:q6elqYpo83MuKWuwK8KOOX-->1.1万</em><span data-page-node-id="a3ctOHwT9iS1qK6kTaRgC6"><!--pnid:wWXRa7rn2PcMhzVPxH7FCK-->最高单篇阅读</span></div>
@@ -3281,7 +3333,7 @@ footer .f-ghost{
     <div data-page-node-id="Zx2EucNqB8R677Gg6G8ceh" class="wrap">
       <div data-page-node-id="g8INK0M08aDvII3ZUVSqYd" class="kick"><!--pnid:rK6U3XVu8k7EdN7EmxkEMd-->卷三 · 观数 <span data-page-node-id="IEDh5zdwMPapWz4omlKEbI" class="kick-en"><!--pnid:kNzj1wQifEFtJSQEcuiB7U-->CLARITY — DATA &amp; INSIGHT</span></div>
       <h1 data-page-node-id="K4yTbJodsxgOIIf3QyOE9b"><!--pnid:GebJmSTZFyCnVY05foxIM0-->数据分析</h1>
-      <p data-page-node-id="Wz75OLwyfegCfdVDK6yvTl" class="sub"><!--pnid:7X9hswCBK9X0HMJSQuqqvk-->商科出身，习惯用<b data-page-node-id="lsVUsnVPaAP2lwCvYDjJT0"><!--pnid:XpaE16tIgL152YwlAvoqgw-->数据说话</b><!--pnid:2OAyBoN97ceNJEDhljWNAN-->：尖烽时刻里主导财务建模、夺下全国二等奖，实习中用问卷与阅读数据定位真问题。</p>
+      <p data-page-node-id="Wz75OLwyfegCfdVDK6yvTl" class="sub"><!--pnid:7X9hswCBK9X0HMJSQuqqvk-->数据不是拿来做汇报的，是用来改下一版的：沙盘赛里算清每一轮出价，实习时用问卷找出满意度「次日最低」的规律，再从 713 篇推文里看出「稳但缺爆点」。商科出身，习惯用<b data-page-node-id="lsVUsnVPaAP2lwCvYDjJT0"><!--pnid:XpaE16tIgL152YwlAvoqgw-->数据说话</b><!--pnid:2OAyBoN97ceNJEDhljWNAN-->，说的就是这个。</p>
       <div data-page-node-id="Fgqo7q1whbuGLYq6G9Vtim" class="mini-stats">
         <div data-page-node-id="FMVXqihqWRKwB3LdGBUG2R" class="mini-stat rv"><em data-page-node-id="K5lMAaXSzCTb2mTJe9kEtq"><!--pnid:j15Vofj9krgHNbDRjKZpLp-->全国</em><span data-page-node-id="Jq4IdLB5CbWTXqQCDXeKa1"><!--pnid:bTR8uDVZ9YV4316jsTi9Hv-->二等奖 · 团队队长</span></div>
         <div data-page-node-id="TNA3ws469yccnXaAD6vhrP" class="mini-stat rv d1"><em data-page-node-id="KEpBzA0JPJ2B0BPhGMvGsQ"><!--pnid:U9q5xFSy6VNBZlRopD9NhY-->713篇</em><span data-page-node-id="73rc2cTow6DWLeVhu9fV7B"><!--pnid:qHpsdSkothZngsVIM9somJ-->公众号样本分析</span></div>
@@ -3685,7 +3737,7 @@ footer .f-ghost{
 <a data-page-node-id="rIGkvexWb6mzMl91TkMOMz" class="next-fab" href="#tool" id="nextFab">
   <span data-page-node-id="dcNhoRonqHsLnfheCO0yMM" class="nf-next"><!--pnid:gnPyOXTCMddL2Yc0UulKjS-->NEXT</span>
   <span data-page-node-id="2WT9C5ICjgxpUNDZcyZdNJ" class="nf-arrow"><!--pnid:tq9pi97DiQQAUI5yeXwpAh-->→</span>
-  <span data-page-node-id="6WdSMyiw9fZHNrnbv5JS55" class="nf-to" id="nextFabTo"><!--pnid:MiW1YdGMvC7c9gjuv5xWeu-->工具落地</span>
+  <span data-page-node-id="6WdSMyiw9fZHNrnbv5JS55" class="nf-to" id="nextFabTo"><!--pnid:MiW1YdGMvC7c9gjuv5xWeu-->AI 产品开发</span>
 </a>
 
 <!--pnid:n52Btn5lkTibklJXA9kEvk--><!-- 章节进度 -->
@@ -3704,7 +3756,7 @@ footer .f-ghost{
       <img data-page-node-id="VSxq4lExR4OoleI1fsvkYn" alt="林子炀" class="avatar-round" loading="lazy" decoding="async" src="assets/bTGNANfN3T913ad8XBAzn2.png">
       <div data-page-node-id="4UuMGLv7lKoiqlOVm00XXd" style="flex:1; min-width:260px">
         <div data-page-node-id="2sfHk3v4wJU200mYCI0Zdu" class="f-title"><!--pnid:CBTuYkZO7U8hr1eIDJ9eHH-->下一章，想与你同走一程。</div>
-        <div data-page-node-id="hg8LHT6eSsgtABxuaTkI6P" class="f-sub" style="margin-bottom:0"><!--pnid:A3KJrXL9iJm8OKqHqLUNYl-->吉林大学商科背景，AI 学习实践者，能抗压、爱思考。若这个网站让你觉得「这个人有点意思」，欢迎来聊聊。</div>
+        <div data-page-node-id="hg8LHT6eSsgtABxuaTkI6P" class="f-sub" style="margin-bottom:0"><!--pnid:A3KJrXL9iJm8OKqHqLUNYl-->商科出身，AI 学习实践者。如果你的团队正缺一个既写得了 PRD、又跑得动内容的人，来聊聊怎么填这个坑。</div>
       </div>
     </div>
     <div data-page-node-id="1OnGXiQ3Y5oFgLeRmd3EiT" class="f-sub" style="margin-top:28px"><!--pnid:V9ZB0vMhmXi6oXpKgDz6SC-->2027 届校招进行中 ｜ AI · 产品运营 / 品牌营销 / 用户与内容运营 ｜ 期待你的联系</div>
@@ -5042,15 +5094,15 @@ function showExploreNote(id, custom){
     var hero = page.querySelector(".hero");
     var map = page.querySelector(".exp-map");
     if (!hero || !map) return;
-    /* 1.8s：原来给到 2.8s，等的人以为没反应。错身这一段留够「看得清」就行，
-       再慢就是拖。缓动没动，落点还是轻的。
+    /* 1.3s：2.8 → 1.8 → 1.3，一路收紧。错身这一段本来就只是「让位」，
+       看清楚了就该落定，拖下去反而像卡住。缓动没动，落点还是轻的。
        清空 transform 即回落文档流 —— 也就是「地图在上、名片在下」的终态。 */
-    var ease = "transform 1.8s cubic-bezier(.55,.05,.25,1)";
+    var ease = "transform 1.3s cubic-bezier(.55,.05,.25,1)";
     hero.style.transition = ease; map.style.transition = ease;
     hero.style.transform = ""; map.style.transform = "";
     setTimeout(function(){
       hero.style.cssText = ""; map.style.cssText = "";
-    }, 2000);
+    }, 1500);
   };
 
   var revealed = false;
@@ -5074,7 +5126,7 @@ function showExploreNote(id, custom){
       }, 620);
     }, 660);
     if (window.__homeSwapHold) window.__homeSwapHold();      /* 幕布后先定格：名片在上 */
-    if (window.__homeSwap) setTimeout(window.__homeSwap, 3000); /* 停 3s 后换位（1.8s） */
+    if (window.__homeSwap) setTimeout(window.__homeSwap, 2600); /* 停 2.6s 后换位（1.3s） */
   }
 
   /* ---- 跳过开场 ----
@@ -5200,7 +5252,7 @@ function showExploreNote(id, custom){
 
   /* NEXT 章节圆钮 */
   var ORDER = ["home","tool","content","data"];
-  var NAMES = {home:"首页", tool:"工具落地", content:"内容运营", data:"数据分析"};
+  var NAMES = {home:"首页", tool:"AI 产品开发", content:"品牌 · 内容运营", data:"数据分析"};
   var nextFab = document.getElementById("nextFab");
   var nextFabTo = document.getElementById("nextFabTo");
   window.__syncNext = function(){
