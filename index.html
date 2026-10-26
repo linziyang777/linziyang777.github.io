@@ -1872,13 +1872,12 @@ footer .f-ghost{
 /* ============ v24：手机端头部整理（一行控制 + 一行可横滑导航） ============ */
 /* ============ v48：手机端排版收口 ============ */
 @media (max-width:720px){
-  /* 手机端先看人、再看图。
-     桌面是「地图在上、名片在下」，可那块图在手机上光标题+手记就占掉一屏，
-     访客得滚一下才知道这站是谁的。这里把名片提到最前，地图回到它后面。
-     顺序变了，配套要做的两件事：入场那套换位动画在手机上关掉（见 __homeSwapHold），
-     否则它照旧按「地图在上」算位移，一跑就把名片顶到屏幕外。 */
-  #page-home{display:flex;flex-direction:column;}
-  #page-home > .hero{order:-1;}
+  /* 手机端：地图仍在最前，人物卡片挪到底数一览下面（DOM 由 JS 搬，见「手机端名片归位」）。
+     卡片脱离 hero 之后要自己撑住左右留白和收尾间距。 */
+  .card-slot{padding:4px 16px 44px;}
+  .card-slot .idcard{margin:0 auto;}
+  /* 名片搬走以后，hero 里只剩文字，再撑 88vh 就是一屏空白。 */
+  #page-home .hero{min-height:auto;padding-bottom:26px;}
 }
 @media (max-width:560px){
   /* 英文名行：桌面是 26px + .32em 字距，手机按 2.2vw 只缩到 19px，
@@ -5289,6 +5288,45 @@ function showExploreNote(id, custom){
   }, {passive:true});
 })();
 
+
+/* ============ 手机端名片归位 ============
+   名片本来是 hero 网格的右列，桌面要和自我介绍并排。
+   手机上并排变上下，一张 320 宽的大卡片卡在名字和地图之间，首屏全被它占掉。
+   窄屏时整列搬到底数一览后面，宽回来再搬回 hero 右列。
+   只搬 DOM，不复制 —— 里面的翻牌事件、onclick 都不会丢。 */
+(function(){
+  var page = document.getElementById("page-home");
+  if(!page) return;
+  var grid = page.querySelector(".hero-grid");
+  if(!grid || grid.children.length < 2) return;
+  var col  = grid.children[1];
+  var slot = null;
+  function apply(){
+    var mobile = window.matchMedia("(max-width:720px)").matches;
+    if(mobile){
+      if(!slot){
+        slot = document.createElement("div");
+        slot.className = "card-slot";
+      }
+      /* 首页的数字带是 .stat-band（.mini-stats 只有工具页那份），先认它，认不到再退一层。
+         这里必须先确认 slot 已经挂进文档，再搬人 —— 顺序反了的话，
+         slot 还是游离节点，名片会被一起带出文档流，整张卡直接消失。 */
+      var stats = page.querySelector(".stat-band") || page.querySelector(".mini-stats");
+      var host  = stats ? stats.closest(".sec") : null;
+      if(!host || !host.parentNode) return;
+      if(slot.parentNode !== host.parentNode){
+        host.parentNode.insertBefore(slot, host.nextSibling);
+      }
+      if(col.parentNode !== slot) slot.appendChild(col);
+    } else {
+      if(col.parentNode !== grid) grid.appendChild(col);
+      if(slot && slot.parentNode) slot.parentNode.removeChild(slot);
+    }
+  }
+  apply();
+  window.addEventListener("resize", apply, {passive:true});
+  window.addEventListener("orientationchange", apply, {passive:true});
+})();
 
 /* ============ 工卡：点击人物照片切换（黑衣 / 白衣） ============ */
 (function(){
