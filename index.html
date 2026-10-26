@@ -1,11 +1,15 @@
 <!DOCTYPE html>
 <html data-page-node-id="MpSAT9LflRNEVWKQBk00HK" lang="zh-CN">
 <head data-page-node-id="vZYLsWvyxhUoXgQCRP1fJg">
-<!-- 背景音乐：最早的一次起播尝试。
-     放在 head 第一行、早于样式表和整页 DOM —— 解析到这儿就去拉流并申请播放许可。
-     原来要等 body 末尾那段脚本（第 3614 行才开始）跑到 4400 多行才起播，
-     中间隔着三百多 KB 的 HTML 解析，慢的话就是一两秒的空白。
-     这里失败无所谓，主体逻辑会接手重试；成了就白赚一段时间。 -->
+<!-- 背景音乐：最早的一次拉流。
+     放在 head 第一行、早于样式表和整页 DOM —— 解析到这儿就开始下载音频。
+
+     这里**只 load，不 play**。两个原因：
+       ① 进站就 play 基本会被自动播放策略拦掉，退成静音播之后时间轴照跑，
+          等用户真听到声时曲子早就过了开头几十秒 —— 这就是「听到的都不是开头」。
+       ② 起播时机改到了点「启程」那一下。那是确定无疑的用户手势，
+          浏览器一定给播放许可，而且从 0 开始，听到的就是第一秒。
+     开场动画有 9 秒，全部用来缓冲；点下去直接出声，不用等。 -->
 <script>
 (function(){
   try{
@@ -14,12 +18,11 @@
     a.loop = false;
     a.playsInline = true;
     a.src = "assets/bgm.mp3";
-    /* 先压到目标音量再起播。默认音量是 1，等主体脚本跑到 4400 行才调下来，
+    /* 先压到目标音量。默认音量是 1，等主体脚本跑到 4400 行才调下来，
        中间这一两百毫秒会以满音量炸一下。数值跟下面的 BGM_VOL 保持一致。 */
     a.volume = 0.26;
     window.__bgmEl = a;
-    var p = a.play();
-    if(p && p.catch) p.catch(function(){});
+    try{ a.load(); }catch(e){}
   }catch(e){}
 })();
 </script>
@@ -4325,7 +4328,7 @@ function showExploreNote(id, custom){
     bgmFallbackUsed = true;
     bgm.src = "https://linziyang777.github.io/assets/bgm.mp3";
     try{ bgm.load(); }catch(e){}
-    bgmKick();
+    if(bgmStarted) bgmKick();     // 还没起播就只是换条源继续预载，别擅自开播
   }
 
   /* 一轮放完：回卷重来。结尾那 3.2 秒已经淡到 0，切回开头听不出接缝 */
@@ -4349,7 +4352,8 @@ function showExploreNote(id, custom){
   var bgmGain    = null;        // Web Audio 通道
   var bgmWired   = false;       // 是否已接进 AudioContext
   var bgmWanted  = true;        // 用户意图，跟 soundOn 同步
-  var bgmScale   = 1;           // 开关缩放 0~1。起始就是 1：进站立刻满音量，不做渐入
+  var bgmStarted = false;       // 是否已经正式起播过（点过「启程」/手动开过声）
+  var bgmScale   = 1;           // 开关缩放 0~1。起始就是 1：起播立刻满音量，不做渐入
   var bgmRaf     = 0;
   var bgmLastTs  = 0;
 
@@ -4417,7 +4421,44 @@ function showExploreNote(id, custom){
     if(!bgmWanted && bgmScale <= 0.001 && !bgm.paused) bgm.pause();
   }
 
-  /* ---- 进站即播 ----
+  /* ---- 起播时机：点「启程」那一下，从第 0 秒开始 ----
+
+     为什么不再「进站即播」：
+     自动播放策略拦下有声播放后，代码会退成静音起播 —— 时间轴照跑，只是没声。
+     等用户第一次触屏、解静音成功，曲子往往已经走到 20 秒、40 秒，
+     于是每次听到的都是中段。用户的原话是「听到的时候都已经不是开头了」。
+     与其赌一次被拦的自动播放，不如把起播挪到一个确定的手势上：
+
+       进站 → 只 preload，开场那 9 秒全用来缓冲
+       点「启程」→ 这是真实用户手势，浏览器必给播放许可 → currentTime 归零 → play()
+
+     代价是不点启程就没音乐。但开场本来就是全屏盖住的，没人在那时候听。
+     万一 play 还是被拒（脚本触发、极端套壳），仍退回老的三层兜底：
+     静音跑着 + 挂手势等下一次触碰。 */
+  function bgmStartFromTop(){
+    if(!bgmWanted) return;
+    bgmWire();
+    ensureCtx();                  // iOS 走 gain 通道，ctx 还挂在 suspended 就不出声
+    bgmLastTs = 0;
+    bgmStarted = true;
+    bgmSilent  = false;
+    if(!bgmRaf) bgmRaf = requestAnimationFrame(bgmFrame);
+
+    /* 先停、解静音、归零、再 play —— 顺序别改。
+       静音态下直接改 muted，夸克这类 Chromium 套壳会把元素按停。 */
+    try{ bgm.pause(); }catch(e){}
+    bgm.muted = false;
+    try{ bgm.currentTime = 0; }catch(e){}
+    var p = bgm.play();
+    if(p && p.catch) p.catch(function(){
+      bgmStarted = false;         // 没成，回到「还没起播」的状态
+      bgmSilentPlay();
+      bgmArmUnmute();
+    });
+  }
+
+  /* ---- 兜底：进站即播 ----
+     只在没有「启程」可点或起播被拒时用，正常入口走 bgmStartFromTop()。
      浏览器默认拦「有声自动播放」，但允许「静音自动播放」。所以三层走：
 
        ① 直接 play()：老访客（Chrome 的媒体参与度够高）或系统已放开的环境，
@@ -4434,6 +4475,7 @@ function showExploreNote(id, custom){
   function bgmKick(){
     if(!bgmWanted) return;
     bgmWire();
+    bgmStarted = true;
     bgmLastTs = 0;
     if(!bgmRaf) bgmRaf = requestAnimationFrame(bgmFrame);
     bgmArmUnmute();               // 无条件先挂上，别去赌 promise 的状态
@@ -4464,8 +4506,10 @@ function showExploreNote(id, custom){
     ensureCtx();                  // iOS 走 gain 通道，ctx 还挂在 suspended 就不出声
     if(!bgmRaf) bgmRaf = requestAnimationFrame(bgmFrame);
 
-    /* 已经在有声放着，什么都不用做，把手势撤了就行 */
-    if(!bgm.paused && !wasMuted && !bgm.muted){
+    /* 已经在有声放着，什么都不用做，把手势撤了就行。
+       但 iOS 的 gain 通道要是还挂在 suspended，元素在走也没声，得继续往下走。 */
+    var ctxBad = bgmGain && audioCtx && audioCtx.state !== "running";
+    if(!bgm.paused && !wasMuted && !bgm.muted && !ctxBad){
       bgmGestureDone();
       return;
     }
@@ -4539,8 +4583,10 @@ function showExploreNote(id, custom){
     bgmUnmuteOn = true;
 
     function off(){
-      /* 已经正常出声：直接撤，别再 pause 一下白断一拍 */
-      if(!bgm.paused && !bgm.muted && !bgmSilent){ bgmGestureDone(); return; }
+      /* 已经正常出声：直接撤，别再 pause 一下白断一拍。
+         iOS 的 gain 通道挂在 suspended 时不算「正常出声」，要往下走去修 ctx。 */
+      var ctxBad = bgmGain && audioCtx && audioCtx.state !== "running";
+      if(!bgm.paused && !bgm.muted && !bgmSilent && !ctxBad){ bgmGestureDone(); return; }
       /* 连点连滚的时候别每一下都重启播放 */
       var now = Date.now();
       if(now < bgmRetryAt) return;
@@ -4565,35 +4611,66 @@ function showExploreNote(id, custom){
     };
   }
 
-  /* ---- 切走 / 熄屏就停 ----
+  /* ---- 切走 / 熄屏就停，回来接着放 ----
      tab 切走、窗口最小化、手机切到别的 App、熄屏锁屏，统一都由
      visibilitychange 冒出来（hidden）。这里直接 pause，不做淡出——
      人已经看不见页面了，淡出那 3 秒纯属白烧电。
-     回来时从暂停处接着放，不是从头开始。 */
-  var bgmHiddenStop = false;    // 是我们主动停的，不是用户关了声音
+     回来时从暂停处接着放，不是从头开始。
 
+     手机上熄屏解锁这条路很脏，实测三个坑：
+       ① 熄屏时 iOS 会把 AudioContext 挂到 suspended，回来后只调 play()
+          是没用的——gain 通道不通，元素在走、时间轴在动，就是一个声都没有。
+          所以必须先 ensureCtx() 把 ctx 拉回来；拉不回来就挂手势等用户碰屏幕。
+       ② 解锁回来，浏览器常把「用户手势」的判定清掉，play() 直接 reject。
+          原来的写法只退到 bgmSilentPlay() 就完了，静音一路跑着、再也不出声。
+          现在必须同时 bgmArmUnmute()，用户解锁后随便碰一下就有声。
+       ③ 部分安卓只给 window.focus，不给 visibilitychange。
+          所以 focus 也当成一次「回来了」。
+     另外这里不再依赖 bgmHiddenStop——那是「是不是我们停的」的标记，
+     手机上页面被回收重建、或者别处把音乐停了，这个标记对不上就会漏掉恢复。 */
   function bgmPageHide(){
     if(!bgmWanted) return;
     if(bgm.paused) return;
-    bgmHiddenStop = true;
     try{ bgm.pause(); }catch(e){}
   }
 
   function bgmPageShow(){
-    if(!bgmHiddenStop) return;
-    bgmHiddenStop = false;
     if(!bgmWanted) return;
+    if(!bgmStarted) return;          // 还在开场界面、没点过启程，别偷偷跑起来
+    if(!bgm.paused && !bgm.muted) return;   // 本来就在有声播放
+
     bgmLastTs = 0;
     ensureCtx();
     if(!bgmRaf) bgmRaf = requestAnimationFrame(bgmFrame);
-    if(!bgm.paused) return;
-    if(bgm.muted){              // 还没解锁过：静音续上，手势一到就出声
-      var q = bgm.play();
-      if(q && q.catch) q.catch(function(){});
+
+    /* iOS 的 gain 通道挂在 ctx 上，ctx 还在 suspended 就等于静音。
+       这种时候先静音续上、挂手势，等用户碰屏幕再出声。 */
+    if(bgmGain && audioCtx && audioCtx.state !== "running"){
+      if(bgm.paused){
+        var q0 = bgm.play();
+        if(q0 && q0.catch) q0.catch(function(){});
+      }
+      bgmArmUnmute();
       return;
     }
+
+    if(bgm.muted){                   // 还没解锁过：静音续上，手势一到就出声
+      var q = bgm.play();
+      if(q && q.catch) q.catch(function(){});
+      bgmArmUnmute();
+      return;
+    }
+
     var p = bgm.play();
-    if(p && p.catch) p.catch(function(){ bgmSilentPlay(); });
+    if(p && p.then){
+      p.then(function(){ bgmGestureDone(); })
+       .catch(function(){
+         /* 熄屏解锁后最常见的落点：浏览器不给播。
+            退回静音继续跑时间轴，并把手势挂回去 —— 用户一碰屏幕就有声。 */
+         bgmSilentPlay();
+         bgmArmUnmute();
+       });
+    }
   }
 
   document.addEventListener("visibilitychange", function(){
@@ -4601,18 +4678,23 @@ function showExploreNote(id, custom){
     else bgmPageShow();
   });
   window.addEventListener("pagehide", bgmPageHide);
-  window.addEventListener("pageshow", function(e){ if(e.persisted) bgmPageShow(); });
+  window.addEventListener("pageshow", bgmPageShow);
   document.addEventListener("freeze", bgmPageHide);   // Chrome 的页面冻结
   document.addEventListener("resume", bgmPageShow);
+  /* 安卓熄屏解锁有时只给 focus，不给 visibilitychange */
+  window.addEventListener("focus", function(){
+    if(document.visibilityState !== "hidden") bgmPageShow();
+  });
 
   /* head 里那次早期尝试如果已经把 src 判死了，error 事件在我们挂监听之前就发过了，
      这里补查一次，别白等一个永远不会再来的事件 */
   if(bgm.error) bgmFallback();
 
-  /* 脚本跑到这儿就直接起播，不等任何交互 */
-  bgmKick();
+  /* 注意：这里**不**起播。起播在点「启程」的 click 里调 bgmStartFromTop()。
+     进站这一段只负责把元素接上、监听挂好、开始预载。 */
 
-  window.__bgmStart = bgmKick;
+  window.__bgmStart   = bgmKick;
+  window.__bgmFromTop = bgmStartFromTop;
   window.__bgmInfo = function(){
     return {
       t: +bgm.currentTime.toFixed(2),
@@ -4637,7 +4719,9 @@ function showExploreNote(id, custom){
       ensureCtx(); playTick();
       bgmSilent = false;         // 手动开声，清掉静音等待态
       bgmScale  = 1;             // 立刻就满音量，不做渐入
-      bgmUnmute();               // 走「先停 → 解静音 → play」那条路，套壳浏览器才认
+      /* 还没起播过（人还在开场界面）就从头起播；已经在放就只是解除静音、接着放 */
+      if(bgmStarted) bgmUnmute();
+      else bgmStartFromTop();
     }
     /* 关掉时不立刻 pause：交给 bgmFrame 把音量淡下去再停 */
   });
@@ -4751,6 +4835,11 @@ function showExploreNote(id, custom){
 
   introStart.addEventListener("click", function(){
     if (intro.classList.contains('departing') || intro.classList.contains('done')) return;
+    /* 音乐就在这一下起播。
+       这一下是真实用户手势，浏览器的自动播放策略一定放行，不用再赌静音起播；
+       而且一律从第 0 秒开始 —— 进站那 9 秒的开场全用来预载，点下去就是第一秒。
+       放在最前面：后面那串 setTimeout 会把转场推到 9 秒后，音乐不能等。 */
+    bgmStartFromTop();
     introStart.disabled = true;
     intro.classList.add('departing');
     setTimeout(function(){ portal.classList.add('on'); }, 550);       // 城门魔法阵点亮
