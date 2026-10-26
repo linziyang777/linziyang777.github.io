@@ -561,12 +561,9 @@ nav{
   .next-fab .nf-to{font-size:10px;}
   .next-fab .nf-arrow{font-size:16px;}
 
-  /* 手机端：探险手记便签化，确保叙事可见 */
-  .hero-note{
-    margin:0 0 22px;padding:10px 14px;
-    background:var(--paper);border:2px dashed var(--ink);border-left:4px solid var(--c1);
-    border-radius:10px;font-size:13.5px;
-  }
+  /* 探险手记便签化的手机规则不写在这里：.hero-note 的桌面版定义在本段之后，
+     同优先级会把它整段盖掉（padding-right 变 0、左边框 4→3），文字会贴住虚线框。
+     规则统一放在 .hero-note 桌面定义下面。 */
   .explore-toast{max-width:100%;}
 
   /* 手机端：地图点位文字放大。
@@ -949,7 +946,22 @@ min-height:min(88vh,840px);display:flex;flex-direction:column;justify-content:ce
   color:rgba(var(--ink-rgb),.72);
   border-left:3px solid var(--c1);padding:6px 0 6px 14px;
 }
-.hero-note .hn-tail{font-weight:900;color:var(--ink);}
+.hero-note .hn-tail{font-weight:900;color:var(--ink);white-space:nowrap;}
+/* 手机端：探险手记做成便签。
+   这几条必须写在这里——上面就是 .hero-note 的桌面版定义，
+   手机规则若写在它前面，同优先级会被整段盖掉：padding-right 归零、左边框 4→3px，
+   文字就贴着虚线框（390 宽实测右侧只剩 1.5px、底部 1.9px），看着像被切掉一截。 */
+@media (max-width:560px){
+  .hero-note{
+    margin:0 0 22px;
+    padding:12px 14px;
+    background:var(--paper);
+    border:2px dashed var(--ink);
+    border-left:4px solid var(--c1);
+    border-radius:10px;
+    line-height:1.75;
+  }
+}
 /* 导航栏：下滑隐藏、上滑显现 */
 nav{
   transition:transform .3s ease;
@@ -3564,7 +3576,6 @@ footer .f-ghost{
   </div>
 
   <div class="fin-cap cap1"><b>你转过身</b>画卷之外，是现实的城堡</div>
-  <div class="fin-cap cap2"><b>勇者的雕像</b>凡经我手，皆成作品</div>
 
   <div class="fin-resume">
     <div class="fr-track">
