@@ -131,7 +131,11 @@ body[data-page="data"]{
    手机上只要内容比屏幕宽一点点，浏览器就允许左右拖着看，整个画面跟着偏。
    这里用 clip 而不是 hidden：clip 不会把元素变成滚动容器，
    hidden 会把 body 变成滚动容器，导航栏的 position:sticky 就失效了。 */
-html{scroll-behavior:smooth;overflow-x:clip;overscroll-behavior:none;}
+html{scroll-behavior:smooth;overflow-x:clip;overscroll-behavior:none;
+  /* 吸顶导航的高度。所有「滚到某个元素」的动作（点地图点位、从别的页跳回、
+     focus 落到某个链接）都要留出这段，否则目标区块的顶边正好藏在导航条底下——
+     区块标题的第一行首当其冲，看起来就是「标题显示不全」。 */
+  scroll-padding-top:96px;}
 body{
   font-family:"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif;
   background:var(--bg);
@@ -958,7 +962,12 @@ min-height:min(88vh,840px);display:flex;flex-direction:column;justify-content:ce
   content:"";position:absolute;left:0;top:.16em;width:8px;height:.7em;
   background:var(--seal);border-radius:2px;
 }
-.sec-en{font-family:"Anton",sans-serif;font-size:clamp(14px,1.6vw,18px);letter-spacing:3px;color:var(--c1);padding-bottom:6px;}
+.sec-en{font-family:"Anton",sans-serif;font-size:clamp(14px,1.6vw,18px);letter-spacing:3px;color:var(--c1);padding-bottom:6px;
+  /* 三条兜底，防「这一行整段不见」：
+     ① nowrap —— 窄屏折行后行盒被压扁，字容易被裁在上沿之外；
+     ② min-height —— 套壳字体加载失败时行盒偶尔塌成 0，给个下限顶住；
+     ③ flex:none —— 父级 flex 收缩时别把它挤没。 */
+  white-space:nowrap;min-height:1.35em;flex:none;}
 .sec-tag{
   margin-left:auto;font-family:"Zen Maru Gothic";font-weight:900;font-size:14px;
   background:var(--c2);border:2.5px solid var(--ink);border-radius:999px;padding:3px 14px;
@@ -1041,7 +1050,15 @@ min-height:min(88vh,840px);display:flex;flex-direction:column;justify-content:ce
   margin-top:34px;padding:0;position:relative;
   background:transparent;border:none;box-shadow:none;
 }
-.em-head{display:flex;align-items:center;gap:16px;margin-bottom:16px;position:relative;z-index:1;}
+.em-head{display:flex;align-items:center;gap:16px;margin-bottom:16px;position:relative;z-index:1;
+  /* 滚到地图这一屏时，吸顶导航会吃掉标题上半截（EXPLORER'S MAP 那一行首当其冲），
+     看着就像「标题显示不全」。留出导航差不多的高度，别让内容顶到它底下。 */
+  scroll-margin-top:96px;}
+/* 标题组是 flex 里唯一可伸缩的一项，必须允许它缩到比内容更窄，
+   否则窄屏下整行会被自己的最小内容宽度顶开，右侧 MAP 胶囊被推出画面。 */
+.em-head > div{flex:1 1 auto;min-width:0;}
+.em-head > .em-compass,
+.em-head > .sec-tag{flex:none;}
 .em-compass{color:#6b5335;animation:emSpin 26s linear infinite;display:inline-flex;}
 @keyframes emSpin{to{transform:rotate(360deg);}}
 .em-title{font-weight:900;font-size:clamp(20px,2.6vw,28px);color:#4c3a22;flex:1;
@@ -4164,8 +4181,9 @@ function showExploreNote(id, custom){
     }
     build();
     /* 定格档只在需要时才重画：窗口尺寸变了、切了昼夜主题。
-       动画档本来每帧都在画，不用管。 */
-    addEventListener('resize', function(){ build(); if (starStill) drawStars(performance.now()); });
+       动画档本来每帧都在画，不用管。
+       这条 resize 和下面的取景重算合并成一次防抖 —— 原来两处各挂一个监听，
+       地址栏一收就同时触发「重画满天星」和「重算画幅」，叠在一起最容易闪。 */
     /* ---- 竖屏取景：16:9 画面在手机上会被裁成一条竖缝，这里按屏幕比例重算画幅 ---- */
     var sceneSvg = introEl.querySelector('.scene > svg');
     var hallSvg  = introEl.querySelector('.hallWrap > svg');
@@ -4173,12 +4191,28 @@ function showExploreNote(id, custom){
        实测 Chrome 的 transform-box:view-box 把参考框左上角放在用户坐标 (0,0)，
        并不认 viewBox 的 min-x；减了反而把支点挪到 x=156，竖屏下整张画被甩出屏幕。
        全站其它元素（#paperG / .vSpin / #hall / .portal）用的都是原始用户单位，这里保持一致。 */
-    function fitIntroCam(){
+    /* 上一次真正生效的取景尺寸 / 竖屏判定，用来挡掉抖动（见下） */
+    var camW = 0, camH = 0, camPortrait = null;
+    function fitIntroCam(force){
       if (!sceneSvg || !hallSvg) return;
+      /* 转场一开始就冻结取景。
+         点「启程」会让手机地址栏收起，视口高度跟着变，是安卓最常报的一次 resize。
+         以前这里无脑重算：横竖屏判据 ar 一旦越过 1.12，整张画会瞬间从竖屏特写
+         切回横屏全景 —— 视频里就是点下去闪一下日出远景。转场中一律不重算。 */
+      if (!force && introEl.classList.contains('departing')) return;
       var vw = introEl.clientWidth || innerWidth;
       var vh = introEl.clientHeight || innerHeight;
+      /* 尺寸抖动过滤：地址栏收放只有几十像素，不该当成「换了一块屏」。
+         变化没超过一个拇指宽就当作没变。 */
+      if (!force && camW && Math.abs(vw - camW) < 48 && Math.abs(vh - camH) < 120) return;
+      camW = vw; camH = vh;
       var ar = vw / Math.max(1, vh);
-      var portrait = ar < 1.12;
+      /* 竖屏判定加滞后带：ar 卡在 1.12 附近来回抖时，
+         不给它反复横竖横地切取景。已经竖屏的要到 1.32 才切回横屏。 */
+      var portrait;
+      if (camPortrait === null) portrait = ar < 1.12;
+      else portrait = camPortrait ? (ar < 1.32) : (ar < 0.98);
+      camPortrait = portrait;
       introEl.classList.toggle('mobcam', portrait);
       if (!portrait){
         sceneSvg.setAttribute('viewBox', '0 0 1200 675');
@@ -4196,9 +4230,25 @@ function showExploreNote(id, custom){
       var HW = 675 * ar, hx0 = 760 - HW / 2;
       hallSvg.setAttribute('viewBox', hx0.toFixed(1) + ' 12.5 ' + HW.toFixed(1) + ' 675');
     }
-    fitIntroCam();
-    addEventListener('resize', fitIntroCam);
-    addEventListener('orientationchange', function(){ setTimeout(fitIntroCam, 260); });
+    fitIntroCam(true);
+    /* resize 加防抖：地址栏收放会连着报好几下，每次都重算就是连着闪。
+       转屏是实打实的换画幅，直接强算一次。 */
+    var camTimer = 0;
+    addEventListener('resize', function(){
+      if (camTimer) clearTimeout(camTimer);
+      camTimer = setTimeout(function(){
+        fitIntroCam(false);
+        build();
+        if (starStill) drawStars(performance.now());
+      }, 220);
+    });
+    addEventListener('orientationchange', function(){
+      setTimeout(function(){
+        fitIntroCam(true);
+        build();
+        if (starStill) drawStars(performance.now());
+      }, 260);
+    });
 
     var t0s = performance.now();
     var starLast = 0;
@@ -4575,6 +4625,15 @@ function showExploreNote(id, custom){
       bgmSilentPlay();
       bgmArmUnmute();
     });
+    /* 补一道校验：部分套壳在 readyState 还没到的时候吞掉 currentTime=0，
+       元素起来时接着上次的位置放 —— 听起来就是「点跳过了，但不是从头」。
+       0.3 秒后如果已经明显跑过头，按回起点。正常起播这时才走到 0.3 秒，不会误伤。 */
+    setTimeout(function(){
+      if(!bgmWanted) return;
+      if(!bgm.paused && bgm.currentTime > 0.8){
+        try{ bgm.currentTime = 0; }catch(e){}
+      }
+    }, 300);
   }
 
   /* ---- 兜底：进站即播 ----
@@ -4944,9 +5003,12 @@ function showExploreNote(id, custom){
     introSkipBtn.addEventListener("click", function(){
       if (revealed || introSkipped) return;
       introSkipped = true;
+      /* 音乐跟「启程」走同一套：这一下也是真实用户手势，直接从头起播。
+         放在最前面 —— 后面 revealSite 会挂幕布、排一串定时器，
+         音乐不能等它们。 */
+      bgmStartFromTop();
       introSkipBtn.classList.remove("show");
       introSkipBtn.classList.add("gone");
-      bgmStartFromTop();
       revealSite();
     });
   }
