@@ -890,7 +890,8 @@ html.wx-lite .shot:hover{transform:none;}
   .em-sub{font-size:14px;letter-spacing:1px;}
   /* 巨构入口旁那行印记（「由你定义」）桌面 11px，铺到手机上只剩 4px，
      等于没写。单独给个类放大到 22px，约 8px，凑近能读。 */
-  .em-seal{font-size:22px;}
+  .em-seal{font-size:20px;}
+  /* 印记(基准线 y=459)与 START 行(底 ~435)之间只剩几个单位，再大就贴上了 */
 
   /* 手机端：下载简历与声音按钮同行（logo 左、声音+简历右） */
   nav{gap:8px;}
@@ -1941,6 +1942,9 @@ footer .f-ghost{
   /* 手机端：地图仍在最前，人物卡片挪到底数一览下面（DOM 由 JS 搬，见「手机端名片归位」）。
      卡片脱离 hero 之后要自己撑住左右留白和收尾间距。 */
   .card-slot{padding:4px 16px 44px;}
+  /* hero 左下那行「灯还亮着…」是绝对定位压在底边的装饰；
+     名片搬走后 hero 变矮，它正好叠在两个按钮上。手机端不显示。 */
+  .mega-cap{display:none;}
   .card-slot .idcard{margin:0 auto;}
   /* 名片搬走以后，hero 里只剩文字，再撑 88vh 就是一屏空白。 */
   #page-home .hero{min-height:auto;padding-bottom:26px;}
@@ -2479,7 +2483,7 @@ footer .f-ghost{
         <!--pnid:IZtSDqdAMV5x6QXweo3XSN--><!-- 比例尺（左下装饰） -->
         <g data-page-node-id="ocKoSBCkTh538HY51CgcAd" fill="none" opacity=".65" stroke="#6b5335" stroke-width="2" transform="translate(60,478)">
           <path data-page-node-id="wib0GSa64amPVRl3jvIrH7" d="M0 0 h120 M0 -6 v6 M40 -6 v6 M80 -6 v6 M120 -6 v6"/>
-          <text data-page-node-id="dXQPZ6BX2dVQdffEiNOVCq" class="em-serif em-seal" fill="#6b5335" font-size="11" stroke="none" text-anchor="middle" x="60" y="-12"><!--pnid:u8v4PhQmydGuZYgA8Axix6-->由你定义</text>
+          <text data-page-node-id="dXQPZ6BX2dVQdffEiNOVCq" class="em-serif em-seal" fill="#6b5335" font-size="11" stroke="none" text-anchor="middle" x="60" y="-19"><!--pnid:u8v4PhQmydGuZYgA8Axix6-->由你定义</text>
         </g>
         <!--pnid:c2MRx2SIIaovWQx119TpxU--><!-- 足迹航路 -->
         <path data-page-node-id="Sac7voKdsYCstTwHppi5se" class="em-trail" d="M136 372 C 220 330, 236 240, 318 196 S 500 260, 586 240 S 700 170, 738 140" fill="none" opacity=".85" stroke="#c96f4a" stroke-dasharray="1 13" stroke-linecap="round" stroke-width="3.2"/>
@@ -2864,7 +2868,7 @@ footer .f-ghost{
     <div data-page-node-id="AwAGxxMyiYEUaHLD9tLCvA" class="wrap">
       <div data-page-node-id="xcYQJJ2kbhZrueXtiEuP4D" class="kick"><!--pnid:v88G7jLI1q0KGXr7323j3d-->卷一 · 成器 <span data-page-node-id="q8VNoMoHZm5RsTgGaRuibr" class="kick-en"><!--pnid:D2WcOJTxhVf9xnArcZClcU-->FORGE — TOOLS &amp; SYSTEMS</span></div>
       <h1 data-page-node-id="YIiexco69PQLgfgOb1YuGd"><!--pnid:tCVWSl4BGWhJilrciq7nPF-->AI 产品开发</h1>
-      <p data-page-node-id="l2tDnBkquq6eUqsSL01oOU" class="sub"><!--pnid:qQgMcRb8IHdsTDbVS5rw1M-->三件东西，三种「把麻烦变工具」：运营助手把散在各人手里的经验收成系统，沙盘计算系统把纸笔换成线上，Skill 机制把「做什么」交回给用的人。共同点只有一个——<b data-page-node-id="QxWV9TI11mVQTZamDdD4K6"><!--pnid:Xk0g5eCVIpxXOduudR5TGM-->先找到真痛点，再动手</b><!--pnid:LR8hkRD7D5xPD9n64iUKiX-->。至于我自己学东西，用的是另一个会批改、会答疑的 <b data-page-node-id="subAiAgent01"><!--pnid:subAiAgent01a-->AI 学习助手</b><!--pnid:subAiAgent01b-->。</p>
+      <p data-page-node-id="l2tDnBkquq6eUqsSL01oOU" class="sub"><!--pnid:qQgMcRb8IHdsTDbVS5rw1M-->这里是造物坊。墙上挂的三件工具，都是从真实的麻烦里打出来的：运营助手把散在各人手里的经验收成系统，沙盘计算系统把纸笔换成线上，Skill 机制把「做什么」交回给用的人——共同点只有一条，<b data-page-node-id="QxWV9TI11mVQTZamDdD4K6"><!--pnid:Xk0g5eCVIpxXOduudR5TGM-->先找到真痛点，再动手</b><!--pnid:LR8hkRD7D5xPD9n64iUKiX-->。造工具的人自己也要学东西，用的则是另一个会批改、会答疑的 <b data-page-node-id="subAiAgent01"><!--pnid:subAiAgent01a-->AI 学习助手</b><!--pnid:subAiAgent01b-->。</p>
       <div data-page-node-id="r8BODQbDsem332EqXBp1bh" class="mini-stats">
         <div data-page-node-id="rIj7Cz6nXKYqRtOVmIWtbm" class="mini-stat rv"><em data-page-node-id="zsbW2caW0jB3GOO3UXuaTC"><!--pnid:qtY06n1IaYgYnTtV8blryc-->0→1</em><span data-page-node-id="QClluFJsjSe4MwotqG1mz8"><!--pnid:u1rknWZRvsCwvapUeLj9bE-->沙盘计算系统自发立项</span></div>
         <div data-page-node-id="DHJR4udFs5U4dV2lgknitK" class="mini-stat rv d1"><em data-page-node-id="C7FLv3xHskbmjtyp3NeyBJ"><!--pnid:94QnTyKcMJfKI82UJsTUVO-->4</em><span data-page-node-id="gIGlsyhpNPBJZfRlkmOWty"><!--pnid:TICJZLVUxA8uv9Qx69VjD3-->运营助手模块</span></div>
@@ -3057,7 +3061,7 @@ footer .f-ghost{
         <!--pnid:KROWXPXlcdwyu4Law9eL9Y--><!-- 比例尺（左下装饰） -->
         <g data-page-node-id="Ie0zxOHsNjzKFt438yzyTo" fill="none" opacity=".65" stroke="#6b5335" stroke-width="2" transform="translate(60,478)">
           <path data-page-node-id="6zWyFmuMjDhDs01L5gsp1i" d="M0 0 h120 M0 -6 v6 M40 -6 v6 M80 -6 v6 M120 -6 v6"/>
-          <text data-page-node-id="KBUWdLV8UREVd8ykgYdoXv" class="em-serif em-seal" fill="#6b5335" font-size="11" stroke="none" text-anchor="middle" x="60" y="-12"><!--pnid:hzlrZ4RsP7dUgqMthzmCpm-->由你定义</text>
+          <text data-page-node-id="KBUWdLV8UREVd8ykgYdoXv" class="em-serif em-seal" fill="#6b5335" font-size="11" stroke="none" text-anchor="middle" x="60" y="-19"><!--pnid:hzlrZ4RsP7dUgqMthzmCpm-->由你定义</text>
         </g>
         <!--pnid:FcFPv4YZeKkq09w3meTuiD--><!-- 足迹航路 -->
         <path data-page-node-id="WshOPdAUvyUyYZatYWI1xd" class="em-trail" d="M136 372 C 220 330, 236 240, 318 196 S 500 260, 586 240 S 700 170, 738 140" fill="none" opacity=".85" stroke="#c96f4a" stroke-dasharray="1 13" stroke-linecap="round" stroke-width="3.2"/>
@@ -3335,7 +3339,7 @@ footer .f-ghost{
         <!--pnid:atFxtVeLYOlDqTFf6qVzJY--><!-- 比例尺（左下装饰） -->
         <g data-page-node-id="zSXuSIhwaY5qNeLguQMHCd" fill="none" opacity=".65" stroke="#6b5335" stroke-width="2" transform="translate(60,478)">
           <path data-page-node-id="HaA08VuNclPc3na3kIp598" d="M0 0 h120 M0 -6 v6 M40 -6 v6 M80 -6 v6 M120 -6 v6"/>
-          <text data-page-node-id="vJbOG92VmvHWm3DkacVQdp" class="em-serif em-seal" fill="#6b5335" font-size="11" stroke="none" text-anchor="middle" x="60" y="-12"><!--pnid:qRGhRQTGu66tpuezJFsRSi-->由你定义</text>
+          <text data-page-node-id="vJbOG92VmvHWm3DkacVQdp" class="em-serif em-seal" fill="#6b5335" font-size="11" stroke="none" text-anchor="middle" x="60" y="-19"><!--pnid:qRGhRQTGu66tpuezJFsRSi-->由你定义</text>
         </g>
         <!--pnid:YJod3S1J5O69Tb6h2xmJa7--><!-- 足迹航路 -->
         <path data-page-node-id="9G5VLotQypBVdfBaxy5pXr" class="em-trail" d="M136 372 C 220 330, 236 240, 318 196 S 500 260, 586 240 S 700 170, 738 140" fill="none" opacity=".85" stroke="#c96f4a" stroke-dasharray="1 13" stroke-linecap="round" stroke-width="3.2"/>
@@ -3704,7 +3708,7 @@ footer .f-ghost{
         <!--pnid:ABVBJb0leksnwvEaEwJMO2--><!-- 比例尺（左下装饰） -->
         <g data-page-node-id="H6SzA4rEsSTegC7x8ukOCc" fill="none" opacity=".65" stroke="#6b5335" stroke-width="2" transform="translate(60,478)">
           <path data-page-node-id="KhdA1VngMEexVfXyRCX0mr" d="M0 0 h120 M0 -6 v6 M40 -6 v6 M80 -6 v6 M120 -6 v6"/>
-          <text data-page-node-id="pQkshdDnUzJYyoBHgdCcze" class="em-serif em-seal" fill="#6b5335" font-size="11" stroke="none" text-anchor="middle" x="60" y="-12"><!--pnid:u10QbQ5spGgN4GoJj3yKHd-->由你定义</text>
+          <text data-page-node-id="pQkshdDnUzJYyoBHgdCcze" class="em-serif em-seal" fill="#6b5335" font-size="11" stroke="none" text-anchor="middle" x="60" y="-19"><!--pnid:u10QbQ5spGgN4GoJj3yKHd-->由你定义</text>
         </g>
         <!--pnid:UgYhCmLuDiB6l4F00Rs2No--><!-- 足迹航路 -->
         <path data-page-node-id="A0gqkj5UTgDTpJTlui8DCO" class="em-trail" d="M136 372 C 220 330, 236 240, 318 196 S 500 260, 586 240 S 700 170, 738 140" fill="none" opacity=".85" stroke="#c96f4a" stroke-dasharray="1 13" stroke-linecap="round" stroke-width="3.2"/>
@@ -3851,7 +3855,7 @@ footer .f-ghost{
       <img data-page-node-id="VSxq4lExR4OoleI1fsvkYn" alt="林子炀" class="avatar-round" loading="lazy" decoding="async" src="assets/bTGNANfN3T913ad8XBAzn2.png">
       <div data-page-node-id="4UuMGLv7lKoiqlOVm00XXd" style="flex:1; min-width:260px">
         <div data-page-node-id="2sfHk3v4wJU200mYCI0Zdu" class="f-title"><!--pnid:CBTuYkZO7U8hr1eIDJ9eHH-->下一章，想与你同走一程。</div>
-        <div data-page-node-id="hg8LHT6eSsgtABxuaTkI6P" class="f-sub" style="margin-bottom:0"><!--pnid:A3KJrXL9iJm8OKqHqLUNYl-->商科出身，AI 学习实践者。如果你的团队正缺一个既写得了 PRD、又跑得动内容的人，来聊聊怎么填这个坑。</div>
+        <div data-page-node-id="hg8LHT6eSsgtABxuaTkI6P" class="f-sub" style="margin-bottom:0"><!--pnid:A3KJrXL9iJm8OKqHqLUNYl-->如果你觉得这个网站有点意思，那就找我聊聊？</div>
       </div>
     </div>
     <div data-page-node-id="1OnGXiQ3Y5oFgLeRmd3EiT" class="f-sub" style="margin-top:28px"><!--pnid:V9ZB0vMhmXi6oXpKgDz6SC-->2027 届校招进行中 ｜ AI · 产品运营 / 品牌营销 / 用户与内容运营 ｜ 期待你的联系</div>
@@ -4249,11 +4253,11 @@ function showExploreNote(id, custom){
     var n = visited().length;
     paintMap();
     if(n < 3){
-      showExploreNote(id, "你已探明 " + n + " / 3 座工坊。还差 " + (3 - n) + " 座——集齐后，会有新的奥秘。");
+      showExploreNote(id, "你已推开 " + n + " / 3 座工坊的门。还差 " + (3 - n) + " 座——都走完的话，会有新的奥秘。");
     } else if(allDone()){
       expSet("stone_lit", 1);
       setTimeout(function(){
-        showExploreNote(id, "★ 三座工坊已集齐——地图亮透了：「凡经我手，皆成作品」。");
+        showExploreNote(id, "★ 三扇门都推开了——城堡的灯为你亮透：「凡经我手，皆成作品」。");
       }, 400);
     }
   };
