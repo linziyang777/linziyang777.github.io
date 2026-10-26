@@ -4328,47 +4328,40 @@ function showExploreNote(id, custom){
     bgm.muted  = true;
     bgmArmUnmute();               // 先挂上，哪怕这次静音也被拒，手势还能兜住
     var p = bgm.play();
-    if(!p || !p.then) return;
-    p.then(function(){
-      /* 少数环境（Firefox 等）静音起播后就允许直接解除，试一次不亏 */
-      bgmTryUnmute();
-    }).catch(function(){});
+    if(p && p.catch) p.catch(function(){});
   }
 
-  /* 主动试解除静音：解完 60ms 看一眼元素是不是被浏览器按停了。
-     Chrome 的规矩是「静音可以自播，一解除静音就暂停」，被按停就回滚成静音继续播。 */
-  function bgmTryUnmute(){
-    if(!bgmSilent) return;
-    bgm.muted = false;
-    setTimeout(function(){
-      if(!bgmSilent) return;
-      if(bgm.paused){
-        bgm.muted = true;
-        var p = bgm.play();
-        if(p && p.catch) p.catch(function(){});
-        return;
-      }
-      bgmSilent = false;
-      bgmScale  = 0;
-      bgmLastTs = 0;
-      ensureCtx();
-      if(!bgmRaf) bgmRaf = requestAnimationFrame(bgmFrame);
-    }, 60);
-  }
-
-  /* 真正的手势到了：无条件解除静音并确保在播 */
+  /* 真正的手势到了：解开静音并把播放重新推起来。
+     这里必须「先停、再解静音、再 play()」三步走，不能只改 muted——
+     夸克这类 Chromium 套壳在静音播放中一解除静音就把元素按停，
+     代码看到 paused 是 false 就以为在播、不去重新 play()，结果一路静默到死。
+     表现就是：进站点没声，点页面也没声，只有点一下声音开关才响。
+     暂停不会丢播放位置，currentTime 还在原处。 */
   function bgmUnmute(){
     if(!bgmSilent) return;
     bgmSilent = false;
-    bgm.muted  = false;
-    bgmScale   = 0;
-    bgmLastTs  = 0;
+    bgmScale  = 0;                // 从 0 渐入，别「啪」一下砸进来
+    bgmLastTs = 0;
     ensureCtx();                  // iOS 走 gain 通道，ctx 还挂在 suspended 就不出声
     if(!bgmRaf) bgmRaf = requestAnimationFrame(bgmFrame);
-    if(bgm.paused && bgmWanted){
-      var p = bgm.play();
-      if(p && p.catch) p.catch(function(){});
-    }
+    try{ bgm.pause(); }catch(e){}
+    bgm.muted = false;
+    if(!bgmWanted) return;
+    var p = bgm.play();
+    if(p && p.catch) p.catch(function(){
+      /* 极少数环境连手势里都不给播：退回静音态，等下一个手势再试 */
+      bgmSilent = true;
+      bgm.muted  = true;
+      var q = bgm.play();
+      if(q && q.catch) q.catch(function(){});
+      bgmArmUnmuteAgain();
+    });
+  }
+
+  /* 手势监听解绑后标志仍是 true，要放开重挂才能兜住下一次手势 */
+  function bgmArmUnmuteAgain(){
+    bgmUnmuteOn = false;
+    bgmArmUnmute();
   }
 
   function bgmArmUnmute(){
@@ -4377,6 +4370,7 @@ function showExploreNote(id, custom){
     function off(){
       document.removeEventListener("pointerdown", off, true);
       document.removeEventListener("touchstart",  off, true);
+      document.removeEventListener("touchend",    off, true);
       document.removeEventListener("keydown",     off, true);
       document.removeEventListener("wheel",       off, true);
       document.removeEventListener("scroll",      off, true);
@@ -4384,6 +4378,7 @@ function showExploreNote(id, custom){
     }
     document.addEventListener("pointerdown", off, true);
     document.addEventListener("touchstart",  off, {capture:true, passive:true});
+    document.addEventListener("touchend",    off, {capture:true, passive:true});
     document.addEventListener("keydown",     off, true);
     document.addEventListener("wheel",       off, {capture:true, passive:true});
     document.addEventListener("scroll",      off, {capture:true, passive:true});
