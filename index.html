@@ -1,6 +1,49 @@
 <!DOCTYPE html>
 <html data-page-node-id="MpSAT9LflRNEVWKQBk00HK" lang="zh-CN">
 <head data-page-node-id="vZYLsWvyxhUoXgQCRP1fJg">
+<!-- 背景音乐：最早的一次起播尝试。
+     放在 head 第一行、早于样式表和整页 DOM —— 解析到这儿就去拉流并申请播放许可。
+     原来要等 body 末尾那段脚本（第 3614 行才开始）跑到 4400 多行才起播，
+     中间隔着三百多 KB 的 HTML 解析，慢的话就是一两秒的空白。
+     这里失败无所谓，主体逻辑会接手重试；成了就白赚一段时间。 -->
+<script>
+(function(){
+  try{
+    var a = new Audio();
+    a.preload = "auto";
+    a.loop = false;
+    a.playsInline = true;
+    a.src = "assets/bgm.mp3";
+    /* 先压到目标音量再起播。默认音量是 1，等主体脚本跑到 4400 行才调下来，
+       中间这一两百毫秒会以满音量炸一下。数值跟下面的 BGM_VOL 保持一致。 */
+    a.volume = 0.26;
+    window.__bgmEl = a;
+    var p = a.play();
+    if(p && p.catch) p.catch(function(){});
+  }catch(e){}
+})();
+</script>
+<!-- 「减弱动态效果」的识别要比浏览器老实。
+     QQ / UC / 夸克 / 迅雷 / 微信这些套壳，不管用户在系统里怎么设，
+     一律把 prefers-reduced-motion 报成 reduce。而开场那段 CSS 一读到 reduce，
+     就把所有 .stage 直接摆成 opacity:1、动画全关 —— 看起来就是「开场被跳过」。
+     所以先看 UA：这几个一律不认 reduce，开场照常播。
+     真正的 Chrome / Safari 用户设了减弱动效，仍然照旧降级。 -->
+<script>
+(function(){
+  try{
+    var shell = /QQBrowser|MQQBrowser|Quark|UCBrowser|UBrowser|Thunder|XWEB|MicroMessenger|HuaweiBrowser|MiuiBrowser/i.test(navigator.userAgent);
+    if(!shell && matchMedia("(prefers-reduced-motion: reduce)").matches){
+      document.documentElement.classList.add("rm-intro");
+    }
+    /* 全站统一走这个判定，别再各自去问 matchMedia。
+       下面开场引擎只用它决定「要不要跳过整段转场」。 */
+    window.__rmIntro = function(){
+      return document.documentElement.classList.contains("rm-intro");
+    };
+  }catch(e){}
+})();
+</script>
 
 <meta data-page-node-id="2aJivisi3zHZiYliqwQvsc" charset="UTF-8">
 <meta data-page-node-id="nov7lrimEo7WwDyE8EcEOI" content="no-cache, no-store, must-revalidate" http-equiv="Cache-Control">
@@ -521,18 +564,63 @@ nav{
   #intro .themeToggle{font-size:10px;padding:5px 10px;}
 }
 
+/* ---- 手机端开场防闪 ----
+   开场里这几层全是「远超屏幕尺寸 + 模糊/遮罩 + 长时间动画」：
+   .rays 是 170vmax 带 mask 的锥形渐变在旋转，.mist 是 blur(6px) 的大面积横移，
+   .duskGlow 是 150vmax 的径向渐变换透明度。
+   这些在桌面 GPU 上没事，到手机上会因为纹理反复重建而整屏闪一下。
+   它们全是纯装饰，静止后肉眼几乎看不出差别，但闪没了。 */
+@media (max-width:960px),(pointer:coarse){
+  #intro .rays,
+  #intro .mist,
+  #intro .duskGlow{animation:none;}
+  /* 开场的按钮带 backdrop-filter，安卓套壳里跟着动画一起闪，直接去掉 */
+  #intro .enter{backdrop-filter:none;-webkit-backdrop-filter:none;}
+  /* 把开场整层钉成独立合成层：底下的主页、水彩层怎么重绘都不会串到上面来 */
+  #intro{
+    transform:translateZ(0);
+    -webkit-backface-visibility:hidden;backface-visibility:hidden;
+    isolation:isolate;
+  }
+  /* 只有真要转场时才提前提层，平时不占显存 */
+  #intro.departing #world,
+  #intro.departing #hall{will-change:transform;}
+  #intro .hallWrap{will-change:opacity;}
+}
+
+/* 只有 html.rm-intro 存在时才降级开场。
+   这个类由 head 里那段脚本决定：真 Chrome / Safari 用户设了「减弱动态效果」才加；
+   QQ / UC / 夸克 / 迅雷 / 微信这些套壳一律不加 —— 它们会把 reduce 当默认值报，
+   一加开场就整段跳到完成态，等于开场被吞掉。 */
 @media (prefers-reduced-motion:reduce){
-  #intro .duskGlow,#intro .rays,#intro .bird,#intro .walker .bob,#intro .mist,#intro .ember,#intro .beacon.lit .flame,#intro .route-glow.lit,#intro .isleBob{animation:none}
-  #intro .ember{display:none}
-  #intro .stage{opacity:1;transform:none;transition:none}
-  #intro .win{opacity:1}
-  #intro .portal{transition:none}
-  #intro #world{transition:none}
-  #intro.departing #world{transform:none}
-  #intro .hallWrap,#intro #hall,#intro #paperG,#intro #rodLeft,#intro #rodRight{transition:none}
-  #intro .walker .legL,#intro .walker .legR,#intro .scroll{animation:none}
-  #intro .scroll.spin .vSpin{animation:none}
-  #intro .portal .spinA,#intro .portal .spinB,#intro .portal .coreGlow,#intro .portal .spark{animation:none}
+  html.rm-intro #intro .duskGlow,
+  html.rm-intro #intro .rays,
+  html.rm-intro #intro .bird,
+  html.rm-intro #intro .walker .bob,
+  html.rm-intro #intro .mist,
+  html.rm-intro #intro .ember,
+  html.rm-intro #intro .beacon.lit .flame,
+  html.rm-intro #intro .route-glow.lit,
+  html.rm-intro #intro .isleBob{animation:none}
+  html.rm-intro #intro .ember{display:none}
+  html.rm-intro #intro .stage{opacity:1;transform:none;transition:none}
+  html.rm-intro #intro .win{opacity:1}
+  html.rm-intro #intro .portal{transition:none}
+  html.rm-intro #intro #world{transition:none}
+  html.rm-intro #intro.departing #world{transform:none}
+  html.rm-intro #intro .hallWrap,
+  html.rm-intro #intro #hall,
+  html.rm-intro #intro #paperG,
+  html.rm-intro #intro #rodLeft,
+  html.rm-intro #intro #rodRight{transition:none}
+  html.rm-intro #intro .walker .legL,
+  html.rm-intro #intro .walker .legR,
+  html.rm-intro #intro .scroll{animation:none}
+  html.rm-intro #intro .scroll.spin .vSpin{animation:none}
+  html.rm-intro #intro .portal .spinA,
+  html.rm-intro #intro .portal .spinB,
+  html.rm-intro #intro .portal .coreGlow,
+  html.rm-intro #intro .portal .spark{animation:none}
 }
 
 /* ============ 细线 ghost 按钮 ============ */
@@ -3961,7 +4049,9 @@ function showExploreNote(id, custom){
   /* ---- 方案H 巨构开场引擎（昼夜主题 / 星空 / 烽火加载叙事） ---- */
   (function(){
     var introEl = document.getElementById("intro");
-    var reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    /* 别直接问 matchMedia：套壳浏览器会把 reduce 当默认值报，
+       一问就整个开场降级。统一走 head 里算好的那个判定。 */
+    var reduced = window.__rmIntro ? window.__rmIntro() : false;
 
     /* 昼夜主题：18:00 后默认夜晚 */
     var themeBtn = document.getElementById('themeBtn');
@@ -4027,8 +4117,18 @@ function showExploreNote(id, custom){
     addEventListener('orientationchange', function(){ setTimeout(fitIntroCam, 260); });
 
     var t0s = performance.now();
+    var starLast = 0;
     function drawStars(now){
       if (!sctx) return;
+      /* 开场已经撤掉了就别再画：这层 canvas 藏在 display:none 里，
+         每帧还在 clearRect + 画几百颗星，纯属白烧电、还跟开场动画抢 GPU */
+      if (introEl.classList.contains('done') || !introEl.offsetParent){ sctx = null; return; }
+      /* 30fps 就够看：手机省一半绘制量，避免和开场 SVG 抢帧导致画面发闪 */
+      if (now - starLast < 32){
+        if (!reduced) requestAnimationFrame(drawStars);
+        return;
+      }
+      starLast = now;
       var t = (now - t0s) / 1000;
       var isDay = introEl.classList.contains('day');
       sctx.clearRect(0, 0, W, H);
@@ -4044,7 +4144,7 @@ function showExploreNote(id, custom){
       }
       if (!reduced) requestAnimationFrame(drawStars);
     }
-    if (reduced) drawStars(t0s); else requestAnimationFrame(drawStars);
+    if (reduced) drawStars(t0s + 40); else requestAnimationFrame(drawStars);
 
     /* 环城护墙：城齿与窗 */
     var SVGNS = 'http://www.w3.org/2000/svg';
@@ -4203,39 +4303,53 @@ function showExploreNote(id, custom){
     o.connect(g); g.connect(audioCtx.destination);
     o.start(t); o.stop(t+0.1);
   }
-  /* ---- 背景音乐：循环 + 每轮首尾淡入淡出 ----
+  /* ---- 背景音乐：循环，只在结尾淡出 ----
      和上面的合成音效共用同一个 AudioContext，但走独立的 gain 通道，
      所以按钮 tick / 翻页 swoosh 的音量不受音乐影响，反过来也一样。
-     不用原生 loop：手动回卷，才能在每轮结尾把音量收到 0、开头再推上来，
-     接缝处听不出硬切。 */
-  var bgm = new Audio();
-  bgm.preload  = "auto";        // 进页面就要起播，得让它尽早开始拉流
+     不用原生 loop：手动回卷，才能在每轮结尾把音量收到 0，接缝处听不出硬切。
+
+     注意这里不新建 Audio —— 用 head 里那个已经起播的元素，别再起一份。 */
+  var bgm = window.__bgmEl || new Audio();
+  bgm.preload  = "auto";
   bgm.loop     = false;
   bgm.playsInline = true;
-  bgm.src      = "assets/bgm.mp3";
+  if(!bgm.src) bgm.src = "assets/bgm.mp3";
 
   /* 资料库那条链上，MP3 是作为页面产物挂在 CDN 的，
      拿回来的 content-type 是 application/x-www-form-urlencoded，
      浏览器直接判成「格式错误」，压根播不了（实测 MEDIA_ELEMENT_ERROR: Format error）。
      GitHub Pages 上同一份文件是 audio/mp3，所以本地播不了就退过去。 */
   var bgmFallbackUsed = false;
-  bgm.addEventListener("error", function(){
+  function bgmFallback(){
     if(bgmFallbackUsed) return;
     bgmFallbackUsed = true;
     bgm.src = "https://linziyang777.github.io/assets/bgm.mp3";
     try{ bgm.load(); }catch(e){}
     bgmKick();
-  });
+  }
+
+  /* 一轮放完：回卷重来。结尾那 3.2 秒已经淡到 0，切回开头听不出接缝 */
+  function bgmOnEnded(){
+    if(!bgmWanted) return;
+    try{ bgm.currentTime = 0; }catch(e){}
+    bgmKick();
+  }
+
+  /* 元素的监听统一在这里挂。换元素重建时也要重新挂一遍，所以抽成函数。 */
+  function bgmBind(){
+    bgm.addEventListener("error",  bgmFallback);
+    bgm.addEventListener("ended",  bgmOnEnded);
+  }
+  bgmBind();
 
   var BGM_VOL    = 0.26;        // 目标音量：背景垫乐，压得比较低
-  var BGM_IN     = 2.6;         // 每轮开头淡入（秒）
-  var BGM_OUT    = 3.2;         // 每轮结尾淡出（秒）
-  var BGM_SWITCH = 800;         // 开关切换的淡化时长（毫秒）
+  var BGM_OUT    = 3.2;         // 每轮结尾淡出（秒）——只有当进当止的淡出，没有淡入
+  var BGM_SWITCH = 800;         // 关声音按钮的淡化时长（毫秒）
 
   var bgmGain    = null;        // Web Audio 通道
   var bgmWired   = false;       // 是否已接进 AudioContext
   var bgmWanted  = true;        // 用户意图，跟 soundOn 同步
-  var bgmScale   = 0;           // 开关缩放 0~1，按真实时间向 bgmWanted 逼近
+  var bgmScale   = 1;           // 开关缩放 0~1。起始就是 1：进站立刻满音量，不做渐入
   var bgmRaf     = 0;
   var bgmLastTs  = 0;
 
@@ -4267,14 +4381,17 @@ function showExploreNote(id, custom){
     }
   }
 
-  /* 此刻该有多大声：曲首淡入 × 曲尾淡出 × 开关缩放 */
+  /* 此刻该有多大声：曲尾淡出 × 开关缩放。开头不淡入。
+     注意 duration 拿不到时**不能**返回 0 —— 迅雷这类浏览器对 MP3 常常
+     报 duration=Infinity，一旦这里归零，元素明明在播、音量却被死死压在 0，
+     表现就是「整站没声，点哪里都没声」。拿不到就跳过结尾淡出，照常出声。 */
   function bgmLevel(){
     var d = bgm.duration, t = bgm.currentTime;
-    if(!isFinite(d) || d <= 0) return 0;
     var lv = BGM_VOL;
-    if(t < BGM_IN) lv *= t / BGM_IN;
-    var left = d - t;
-    if(left < BGM_OUT) lv *= Math.max(0, left / BGM_OUT);
+    if(isFinite(d) && d > 0){
+      var left = d - t;
+      if(left < BGM_OUT) lv *= Math.max(0, left / BGM_OUT);
+    }
     return lv * bgmScale;
   }
 
@@ -4282,15 +4399,15 @@ function showExploreNote(id, custom){
     bgmRaf = requestAnimationFrame(bgmFrame);
     if(!bgmWired) return;
 
-    /* 开关缩放按「真实时间」推进，不按帧数——
-       低帧率或 rAF 被节流时，按帧计数会让淡入拖得很长（实测节流到 20fps 时
-       800ms 的淡入要跑两三秒）。切回前台那一帧的 dt 会很大，钳一下防跳变。 */
+    /* 只做淡出，不做淡入。淡入那两三秒在套壳浏览器里会被当成「没播出声」，
+       用户以为坏了就去点按钮。现在进站和解锁都是立刻满音量。
+       时间按真实毫秒算，不按帧数——rAF 被节流时按帧计数会拖出好几倍。 */
     if(bgmLastTs === 0 || bgmLastTs == null) bgmLastTs = ts;
     var dt = Math.min(120, ts - bgmLastTs);
     bgmLastTs = ts;
-    var step = dt / BGM_SWITCH;
-    if(bgmWanted && bgmScale < 1) bgmScale = Math.min(1, bgmScale + step);
-    if(!bgmWanted && bgmScale > 0) bgmScale = Math.max(0, bgmScale - step);
+    if(!bgmWanted && bgmScale > 0){
+      bgmScale = Math.max(0, bgmScale - dt / BGM_SWITCH);
+    }
 
     var lv = bgmLevel();
     if(bgmGain) bgmGain.gain.value = lv;
@@ -4301,32 +4418,35 @@ function showExploreNote(id, custom){
   }
 
   /* ---- 进站即播 ----
-     浏览器默认拦「有声自动播放」，拦不住「静音自动播放」。所以三层走：
+     浏览器默认拦「有声自动播放」，但允许「静音自动播放」。所以三层走：
 
        ① 直接 play()：老访客（Chrome 的媒体参与度够高）或系统已放开的环境，
           这一下就能出声，什么都不用管。
-       ② 被拒 → 静音起播。曲子照常在走时间轴，只是没声；
-          同时挂一组一次性手势（点/触/按键/滚轮/滚动），谁先来算谁，
-          来的那一瞬间解除静音。
-       ③ 连静音都播不了（iOS 低电量模式之类）→ 手势来了直接开播。
+       ② 被拒 → 静音起播。曲子照常在走时间轴，只是没声。
+       ③ 手势一来（点/触/按键/滚轮/滚动），无条件解静音并重新 play()。
 
-     解除静音时把开关缩放归零，让它照常走 800ms 渐入——
-     否则曲子可能已经走到半途，音量从 0 直接跳到 0.26，是「啪」的一下。 */
+     踩过的坑：**不要等 play() 的 promise reject 才挂手势。**
+     弱网下这个 promise 会一直 pending —— 既没成功也没失败，
+     于是「静音起播 + 挂手势」那一步压根没执行，全站手势监听根本不存在。
+     表现就是：从头到尾没声，点遍整页也没反应，只有点声音按钮才响
+     （按钮走的是 click，直接 play）。
+     现在改成：起播时**无条件先挂手势**，真出声了才解绑。 */
   function bgmKick(){
     if(!bgmWanted) return;
     bgmWire();
     bgmLastTs = 0;
     if(!bgmRaf) bgmRaf = requestAnimationFrame(bgmFrame);
+    bgmArmUnmute();               // 无条件先挂上，别去赌 promise 的状态
     if(!bgm.paused) return;
     var p = bgm.play();
     if(p && p.catch) p.catch(function(){ bgmSilentPlay(); });
   }
 
+  /* 有声起播被拒 → 退成静音起播，先把时间轴跑起来 */
   function bgmSilentPlay(){
     if(bgmSilent || bgm.muted) return;
     bgmSilent = true;
     bgm.muted  = true;
-    bgmArmUnmute();               // 先挂上，哪怕这次静音也被拒，手势还能兜住
     var p = bgm.play();
     if(p && p.catch) p.catch(function(){});
   }
@@ -4335,53 +4455,114 @@ function showExploreNote(id, custom){
      这里必须「先停、再解静音、再 play()」三步走，不能只改 muted——
      夸克这类 Chromium 套壳在静音播放中一解除静音就把元素按停，
      代码看到 paused 是 false 就以为在播、不去重新 play()，结果一路静默到死。
-     表现就是：进站点没声，点页面也没声，只有点一下声音开关才响。
      暂停不会丢播放位置，currentTime 还在原处。 */
   function bgmUnmute(){
-    if(!bgmSilent) return;
+    if(!bgmWanted) return;
+    var wasMuted = bgm.muted || bgmSilent;
     bgmSilent = false;
-    bgmScale  = 0;                // 从 0 渐入，别「啪」一下砸进来
     bgmLastTs = 0;
     ensureCtx();                  // iOS 走 gain 通道，ctx 还挂在 suspended 就不出声
     if(!bgmRaf) bgmRaf = requestAnimationFrame(bgmFrame);
+
+    /* 已经在有声放着，什么都不用做，把手势撤了就行 */
+    if(!bgm.paused && !wasMuted && !bgm.muted){
+      bgmGestureDone();
+      return;
+    }
+
     try{ bgm.pause(); }catch(e){}
     bgm.muted = false;
-    if(!bgmWanted) return;
     var p = bgm.play();
-    if(p && p.catch) p.catch(function(){
-      /* 极少数环境连手势里都不给播：退回静音态，等下一个手势再试 */
-      bgmSilent = true;
-      bgm.muted  = true;
-      var q = bgm.play();
-      if(q && q.catch) q.catch(function(){});
-      bgmArmUnmuteAgain();
-    });
+    if(p && p.then){
+      p.then(function(){
+        bgmFailCount = 0;
+        bgmGestureDone();
+      }).catch(function(){
+        /* 第一次失败先退回静音继续跑时间轴，等下个手势。
+           连着两次都失败就换元素重建 —— 迅雷这类浏览器会把旧元素的
+           播放许可一次性作废，同一个 <audio> 再怎么 play() 都没声。 */
+        if(++bgmFailCount >= 2){ bgmRebuild(); return; }
+        bgmSilent = true;
+        bgm.muted  = true;
+        var q = bgm.play();
+        if(q && q.catch) q.catch(function(){});
+      });
+    }else{
+      bgmFailCount = 0;
+      bgmGestureDone();
+    }
   }
 
-  /* 手势监听解绑后标志仍是 true，要放开重挂才能兜住下一次手势 */
-  function bgmArmUnmuteAgain(){
-    bgmUnmuteOn = false;
-    bgmArmUnmute();
+  var bgmFailCount = 0;
+
+  /* 换一个全新的 <audio> 重来。
+     旧元素的监听必须先摘掉：bgmFallback 改的是全局 bgm，
+     旧元素再冒个 error 出来会去改新元素的 src，那就乱了。 */
+  function bgmRebuild(){
+    var old = bgm;
+    var a = new Audio();
+    a.preload = "auto";
+    a.loop = false;
+    a.playsInline = true;
+    a.muted = false;
+    a.src = bgmFallbackUsed ? "https://linziyang777.github.io/assets/bgm.mp3" : "assets/bgm.mp3";
+    bgm = a;
+    bgmGain      = null;
+    bgmWired     = false;
+    bgmFailCount = 0;
+    bgmBind();
+    bgmWire();
+    if(bgmGain) bgmGain.gain.value = Math.min(1, BGM_VOL);
+    else bgm.volume = Math.min(1, BGM_VOL);
+    try{
+      old.removeEventListener("error", bgmFallback);
+      old.removeEventListener("ended", bgmOnEnded);
+      old.pause();
+    }catch(e){}
+    var p = a.play();
+    if(p && p.then) p.then(function(){ bgmGestureDone(); }).catch(function(){});
   }
+
+  /* 出声了，手势监听可以撤了 */
+  function bgmGestureDone(){
+    bgmUnmuteOn = false;
+    if(!bgmUnbind) return;
+    bgmUnbind();
+    bgmUnbind = null;
+  }
+
+  var bgmUnbind  = null;
+  var bgmRetryAt = 0;
 
   function bgmArmUnmute(){
     if(bgmUnmuteOn) return;
     bgmUnmuteOn = true;
+
     function off(){
-      document.removeEventListener("pointerdown", off, true);
-      document.removeEventListener("touchstart",  off, true);
-      document.removeEventListener("touchend",    off, true);
-      document.removeEventListener("keydown",     off, true);
-      document.removeEventListener("wheel",       off, true);
-      document.removeEventListener("scroll",      off, true);
+      /* 已经正常出声：直接撤，别再 pause 一下白断一拍 */
+      if(!bgm.paused && !bgm.muted && !bgmSilent){ bgmGestureDone(); return; }
+      /* 连点连滚的时候别每一下都重启播放 */
+      var now = Date.now();
+      if(now < bgmRetryAt) return;
+      bgmRetryAt = now + 400;
       bgmUnmute();
     }
+
     document.addEventListener("pointerdown", off, true);
     document.addEventListener("touchstart",  off, {capture:true, passive:true});
     document.addEventListener("touchend",    off, {capture:true, passive:true});
     document.addEventListener("keydown",     off, true);
     document.addEventListener("wheel",       off, {capture:true, passive:true});
     document.addEventListener("scroll",      off, {capture:true, passive:true});
+
+    bgmUnbind = function(){
+      document.removeEventListener("pointerdown", off, true);
+      document.removeEventListener("touchstart",  off, true);
+      document.removeEventListener("touchend",    off, true);
+      document.removeEventListener("keydown",     off, true);
+      document.removeEventListener("wheel",       off, true);
+      document.removeEventListener("scroll",      off, true);
+    };
   }
 
   /* ---- 切走 / 熄屏就停 ----
@@ -4390,13 +4571,11 @@ function showExploreNote(id, custom){
      人已经看不见页面了，淡出那 3 秒纯属白烧电。
      回来时从暂停处接着放，不是从头开始。 */
   var bgmHiddenStop = false;    // 是我们主动停的，不是用户关了声音
-  var bgmHideAt     = 0;
 
   function bgmPageHide(){
     if(!bgmWanted) return;
     if(bgm.paused) return;
     bgmHiddenStop = true;
-    bgmHideAt     = Date.now();
     try{ bgm.pause(); }catch(e){}
   }
 
@@ -4404,9 +4583,6 @@ function showExploreNote(id, custom){
     if(!bgmHiddenStop) return;
     bgmHiddenStop = false;
     if(!bgmWanted) return;
-    /* 短切（切个 tab 就回来）不重置缩放，否则每次都白闪一下；
-       离开久了再从 0 渐入，别一回来就「啪」地砸进来。 */
-    if(Date.now() - bgmHideAt > 2500) bgmScale = 0;
     bgmLastTs = 0;
     ensureCtx();
     if(!bgmRaf) bgmRaf = requestAnimationFrame(bgmFrame);
@@ -4429,12 +4605,9 @@ function showExploreNote(id, custom){
   document.addEventListener("freeze", bgmPageHide);   // Chrome 的页面冻结
   document.addEventListener("resume", bgmPageShow);
 
-  /* 一轮放完：回卷重来。结尾那 3.2 秒已经淡到 0，切回开头听不出接缝 */
-  bgm.addEventListener("ended", function(){
-    if(!bgmWanted) return;
-    try{ bgm.currentTime = 0; }catch(e){}
-    bgmKick();
-  });
+  /* head 里那次早期尝试如果已经把 src 判死了，error 事件在我们挂监听之前就发过了，
+     这里补查一次，别白等一个永远不会再来的事件 */
+  if(bgm.error) bgmFallback();
 
   /* 脚本跑到这儿就直接起播，不等任何交互 */
   bgmKick();
@@ -4463,8 +4636,8 @@ function showExploreNote(id, custom){
     if(soundOn){
       ensureCtx(); playTick();
       bgmSilent = false;         // 手动开声，清掉静音等待态
-      bgm.muted  = false;
-      bgmKick();
+      bgmScale  = 1;             // 立刻就满音量，不做渐入
+      bgmUnmute();               // 走「先停 → 解静音 → play」那条路，套壳浏览器才认
     }
     /* 关掉时不立刻 pause：交给 bgmFrame 把音量淡下去再停 */
   });
@@ -4478,13 +4651,16 @@ function showExploreNote(id, custom){
   var hallWrap = document.getElementById('hallWrap');
   var hall = document.getElementById('hall');
   var scrollG = document.getElementById('scrollG');
-  var reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  /* 同样走统一判定。之前这里直接问 matchMedia：
+     QQ / UC / 夸克 / 迅雷这类套壳一报 reduce，点完「启程」1.5 秒就直接揭幕，
+     推近、横移、卷轴展开、漩涡吸入全被跳过 —— 看起来就是「开场动画没了」。 */
+  var reducedMotion = window.__rmIntro ? window.__rmIntro() : false;
 
   /* 首页入场：揭站瞬间先定住「名片页在地图页下方」的画面（藏在 UNFOLD 幕布后），
      停留数秒后两者缓慢换位回到现排布（FLIP 变换，不影响文档流） */
   window.__homeSwapHold = function(){
     try{
-      if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      if (reducedMotion) return;
       if (current !== "home") return;
       var page = document.getElementById("page-home");
       var hero = page.querySelector(".hero");
