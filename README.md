@@ -1,57 +1,55 @@
-# 林子炀 · 个人作品集
+# 林子炀 · 作品集
 
-单文件静态站点。`index.html` 里内联了全部样式与脚本，图片在同级 `assets/` 目录。
+一个可以用鼠标走进去的作品集。
 
-## 文件
+**在线访问 → https://linziyang777.github.io/**
+
+---
+
+## 关于这个站
+
+我不是把简历排版成网页，而是造了一座可以走动的建筑。
+
+开门是一段入场动画：雾薄荷色的巨构遗迹立在山谷里，两尊王像举着手，城门下有火光。点「启程」，镜头推进石厅，一幅卷轴在墙上展开，纸面浮起读不懂的铭文，随后漩涡转起来，把人吸进去——再睁眼，已经落在首页。
+
+首页是一张探险地图。三个红叉标记对应三座工坊，点一下，小人就走过去，翻页进站。
+
+| 工坊 | 内容 |
+| --- | --- |
+| AI 产品开发 | 萌芽运营助手、沙盘模拟计算系统——从需求到能跑的东西 |
+| 品牌 · 内容运营 | 四十余篇推文、二十五万次播放、十人新媒体小队 |
+| 数据分析 | 七百多篇推文的数据盘，红笔圈出的阅读、互动、爆款率 |
+
+三座工坊都走完，地图上的纹样会一级一级亮起来，最后整张图亮透。这时回首页，中央浮出「既往不恋，纵情向前」的印章，点下去，人从画卷里被弹回现实的城堡——第一人称转身，看见自己的雕像立在门前。
+
+另外藏了一个秘境：地图上有个不显眼的入口，进去是一个能玩的独立小游戏。
+
+## 页面结构
 
 ```
-index.html     整站（含开场动画、四页内容、隐藏彩蛋、终章）
-assets/       15 张图片，index.html 以相对路径引用
-.nojekyll     告诉 GitHub Pages 不要用 Jekyll 处理
+index.html     整站：开场动画 / 四页内容 / 隐藏彩蛋 / 终章
+assets/        15 张图片，全部相对路径引用
+.nojekyll      告诉 GitHub Pages 跳过 Jekyll
 ```
 
-## 部署到 GitHub Pages
+## 技术说明
 
-### 方式一：网页操作（不用装任何东西）
+- **单文件架构**：样式和脚本全部内联在 `index.html` 里，没有框架、没有构建步骤。改完存盘刷新就能看。
+- **矢量为主**：城堡、石厅、双王像、地图都是内联 SVG，缩放不糊。
+- **图片本地化**：`assets/` 里 15 个文件，不引用任何外部图床，图不会因为图床挂了而消失。
+- **适配手机**：竖屏单独排过画幅，横竖都不裁切；手机上锁了横向拖动，只能上下滚。
+- **无追踪**：没有统计脚本、没有 Cookie、没有埋点。探索进度只存在内存里，刷新即归零——每次进来都是新的探险。
+- 唯一的第三方请求是 Google Fonts（Anton / Noto Sans SC / Noto Serif SC / Zen Maru Gothic）。断网时会回退到系统字体，版式略有出入，功能不受影响。
 
-1. 打开 https://github.com/new
-2. **Repository name** 填 `linziyang777.github.io`（想用根域名 `https://linziyang777.github.io/`）
-   或填 `portfolio`（网址为 `https://linziyang777.github.io/portfolio/`）
-3. 选 **Public**，点 **Create repository**
-4. 进仓库 → **Add file** → **Upload files**
-5. 把 `index.html`、`.nojekyll` 和整个 `assets` 文件夹拖进去 → **Commit changes**
-6. **Settings** → 左侧 **Pages** → Source 选 `Deploy from a branch`
-   → Branch 选 `main`、目录选 `/ (root)` → **Save**
-7. 等 1~2 分钟，访问对应网址
+## 本地打开
 
-### 方式二：命令行（以后更新只需两条命令）
+直接双击 `index.html` 就能看。想用本地服务：
 
 ```bash
-cd liam-portfolio-github
-git init
-git add -A
-git commit -m "init"
-git branch -M main
-git remote add origin https://github.com/linziyang777/linziyang777.github.io.git
-git push -u origin main
+python -m http.server 8000
+# 浏览器打开 http://localhost:8000
 ```
 
-首次 push 需要认证。GitHub 已停用账号密码，要在这里生成一个
-Personal Access Token（勾 `repo` 权限）当密码用：
-https://github.com/settings/tokens
+## 联系
 
-### 以后更新
-
-```bash
-# 从源目录同步最新版（保留图片本地化与去注入脚本的处理）
-# 然后
-git add -A && git commit -m "update" && git push
-```
-
-## 注意
-
-- GitHub Pages 免费版要求仓库 **Public**，源码对全网可见。
-- 页面底部「下载简历」指向 `林子炀-个人简历.pdf`，该文件尚未放进仓库；
-  要用的话把它放在 `index.html` 同级，否则按钮会 404。
-- 站点用 localStorage 记录「已看过哪些页面」，用来触发地图点亮与终章印记，
-  换浏览器或清缓存会重置，属正常。
+站点最后一幕有联系方式。也欢迎直接开 Issue。
