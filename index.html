@@ -13,8 +13,12 @@
 <script>
 (function(){
   try{
+    /* 微信 / QQ 这类套壳：2.4MB 的音频在进站那一刻就拉，会跟首屏的图和脚本抢带宽，
+       页面整体慢一拍。这些环境改成 preload="none"，等点「启程」时 play() 自己去拉流 ——
+       那时候用户已经决定要看，等一两秒是正常的，进站慢才是致命的。 */
+    var lite = /MicroMessenger|QQBrowser|MQQBrowser|Quark|UCBrowser|UBrowser|Thunder|XWEB|HuaweiBrowser|MiuiBrowser/i.test(navigator.userAgent);
     var a = new Audio();
-    a.preload = "auto";
+    a.preload = lite ? "none" : "auto";
     a.loop = false;
     a.playsInline = true;
     a.src = "assets/bgm.mp3";
@@ -35,7 +39,8 @@
        中间这一两百毫秒会以满音量炸一下。数值跟下面的 BGM_VOL 保持一致。 */
     a.volume = 0.26;
     window.__bgmEl = a;
-    try{ a.load(); }catch(e){}
+    window.__bgmLite = lite;    /* 主体脚本要按这个决定要不要 preload */
+    if(!lite){ try{ a.load(); }catch(e){} }
   }catch(e){}
 })();
 </script>
@@ -70,9 +75,29 @@
 <meta data-page-node-id="ovVq6XOpOiLTzh6491xm6u" content="Liam · 个人作品集" property="og:title">
 <meta data-page-node-id="gPzuAX9KQZGCXUxujEZPz7" content="2027 届校招求职 · AI·产品运营 / 品牌营销 / 用户与内容运营 · AI 产品开发 / 品牌·内容运营 / 数据分析" property="og:description">
 <meta data-page-node-id="Wv64ycR1qlEnmTGF41C92u" content="assets/tAh0KYX8ChRnXq2mgmYbsV.jpg" property="og:image">
-<link data-page-node-id="JUyZ2mu1r4y7BWA66tyQfb" href="https://fonts.googleapis.com" rel="preconnect">
-<link data-page-node-id="Yp2fdQWam2pruf6O0xrtuy" crossorigin href="https://fonts.gstatic.com" rel="preconnect">
-<link data-page-node-id="PhDvMssOZFFd3oSOSsRY4K" href="https://fonts.googleapis.com/css2?family=Anton&family=Noto+Sans+SC:wght@400;500;700;900&family=Noto+Serif+SC:wght@600;900&family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
+<!-- 字体：改成 JS 动态注入，不阻塞首屏。
+     原来这里是三条 <link>，其中 stylesheet 那条会卡住整个页面的首次渲染 ——
+     国内连 fonts.googleapis.com 基本是超时（几十秒），微信里看到的就是「白半天才出来」。
+     动态插入的 link 不参与渲染阻塞，字体到了再换字（原本就是 display=swap，不闪白）。
+     微信 / QQ / 夸克 / 迅雷 这些套壳干脆一个字节都不请求 —— 反正大概率拿不到，
+     还白占一个连接位。它们同时挂上 wx-lite 类，走下面那套轻量样式。 -->
+<script>
+(function(){
+  try{
+    var ua = navigator.userAgent;
+    var shell = /MicroMessenger|QQBrowser|MQQBrowser|Quark|UCBrowser|UBrowser|Thunder|XWEB|HuaweiBrowser|MiuiBrowser/i.test(ua);
+    var html = document.documentElement;
+    if (shell){
+      html.className += (html.className ? " " : "") + "wx-lite";
+      return;
+    }
+    var l = document.createElement("link");
+    l.rel = "stylesheet";
+    l.href = "https://fonts.googleapis.com/css2?family=Anton&family=Noto+Sans+SC:wght@400;500;700;900&family=Noto+Serif+SC:wght@600;900&family=Zen+Maru+Gothic:wght@500;700;900&display=swap";
+    document.head.appendChild(l);
+  }catch(e){}
+})();
+</script>
 <style data-page-node-id="zm2viaj8rD4vXcgCmpd9ZY" data-pnid-children="1kFw0v69ahubC9txcbj7tP">
 /* ============ 基础与主题变量 ============ */
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -257,7 +282,13 @@ nav{
 @media (max-width:960px),(pointer:coarse){
   .grain::before{animation:none;}
 }
-.grain,.wash{transform:translateZ(0);will-change:transform;}
+.grain,.wash{transform:translateZ(0);}
+/* 这里**不写**常驻 will-change。两层都是 inset:0 的 fixed，一直挂着合成层，
+   显存一紧就被丢掉重建 —— 微信 X5 / 低端安卓上表现是滚动发涩、画面一闪一闪。
+   只在真桌面（有精确指针、能 hover）才提层，收益归桌面，代价别让手机背。 */
+@media (hover:hover) and (pointer:fine){
+  .grain,.wash{will-change:transform;}
+}
 /* 水彩晕染层（每页换色） */
 .wash{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;}
 .wash i{position:absolute;border-radius:50%;filter:blur(70px);opacity:.6;transition:background 1.1s ease;}
@@ -650,6 +681,12 @@ nav{
   #intro .hallWrap.on{will-change:opacity;}
   /* 开场的按钮带 backdrop-filter，安卓套壳里跟着动画一起闪，直接去掉 */
   #intro .enter{backdrop-filter:none;-webkit-backdrop-filter:none;}
+  /* 全屏 blur(70px) 的四个彩色圆：模糊半径砍一半，视觉差别很小，
+     GPU 那边要取样的面积少一大截。 */
+  /* 噪点纹理原来铺到两倍屏（inset:-50%），是给位移动画留的余量。
+     手机已经把动画停了，余量没用了 —— 收回一倍屏、密度调大一点，
+     纹理面积直接少四分之三。 */
+  .grain::before{inset:0;background-size:180px 180px;}
   /* ⑥ 不再强制合成层。isolation 留着——它只管混合分组，不建合成层 */
   #intro{
     -webkit-transform:none;transform:none;
@@ -670,6 +707,50 @@ nav{
   #intro.departing #world,
   #intro.departing #hall{will-change:transform;}
 }
+
+/* ============ 微信 / 套壳轻量模式（html.wx-lite） ============
+   微信内置浏览器（安卓 X5 / XWEB）的硬伤就两条：显存小、合成慢。
+   下面这几样在它上面不是「慢一点」，是每帧重新光栅化 / 纹理反复丢了重建：
+     ① 全屏 feTurbulence 噪点（.grain::before，纹理还是两倍屏大）
+     ② 四个 blur(70px) 的彩色圆（.wash i）
+     ③ 常驻 will-change 的 fixed 全屏层
+     ④ 全屏 repeating-conic-gradient 加 mask 的射线
+   表现就是滚动发涩、画面一闪一闪、切后台回来还得重绘好一会儿。
+   这里逐条换成便宜货：质感少一点点，换回能用的帧率。 */
+html.wx-lite .grain::before{background-image:none;animation:none;}
+html.wx-lite .grain,
+html.wx-lite .wash{transform:none;will-change:auto;}
+html.wx-lite .wash i{filter:none;opacity:.22;}
+html.wx-lite #intro .rays,
+html.wx-lite #intro .duskGlow,
+html.wx-lite #intro .mist{display:none;}
+html.wx-lite #intro .in-grain{
+  background:radial-gradient(140% 120% at 50% 46%, transparent 55%, var(--in-vignette) 100%);
+}
+/* 开场只留「推近城门 → 石厅 → 卷轴」这三段位移 —— 它们只动合成层，便宜。
+   循环装饰全停：火苗、鸟、浮岛、余烬、路线流光、罗盘、地图虚线与漩涡。 */
+html.wx-lite #intro .bird,
+html.wx-lite #intro .isleBob,
+html.wx-lite #intro .ember,
+html.wx-lite #intro .beacon .flame,
+html.wx-lite #intro .route-glow,
+html.wx-lite #intro .walker .bob,
+html.wx-lite #intro .walker .legL,
+html.wx-lite #intro .walker .legR,
+html.wx-lite #intro .torch .flame,
+html.wx-lite #intro .vSpin,
+html.wx-lite #intro .portal .spinA,
+html.wx-lite #intro .portal .spinB,
+html.wx-lite #intro .portal .spark,
+html.wx-lite .em-compass,
+html.wx-lite .em-trail{animation:none;}
+html.wx-lite .em-trail{stroke-dashoffset:0;}
+html.wx-lite .em-hero.walk{transition:none;}
+/* 悬停时整块位移 + 阴影，X5 上每帧把整张卡重绘一遍，换成只改透明度 */
+html.wx-lite .deck-card:hover,
+html.wx-lite .tool-card:hover,
+html.wx-lite .case-card:hover,
+html.wx-lite .shot:hover{transform:none;}
 
 /* 只有 html.rm-intro 存在时才降级开场。
    这个类由 head 里那段脚本决定：真 Chrome / Safari 用户设了「减弱动态效果」才加；
@@ -1665,7 +1746,7 @@ footer .f-ghost{
    70px 的晕染模糊每帧都要重算，叠上点阵层和 mask 动画，中低端机滚动时掉帧，
    观感就是「画面在闪」。手机上把模糊半径收小、点阵层停止脉动，画面更稳也更省电。 */
 @media (max-width:960px){
-  .wash i{filter:blur(44px);}
+  .wash i{filter:blur(34px);}
   .mega-cloud{filter:blur(16px);}
   /* .mega-halftone 的原规则在本段之后，同优先级会被它盖掉，用 !important 顶住 */
   .mega-halftone{animation:none !important;}
@@ -2250,8 +2331,8 @@ footer .f-ghost{
       <div data-page-node-id="9bOQMbAJAUVKlNrY9K2dJk" style="position:relative">
         <div data-page-node-id="fMZ4oGMlNuTIQ3XC1YCJVx" class="idcard">
           <div data-page-node-id="BXNhVWKW48J7zmSD6cxhph" class="photo-card blend" role="button" tabindex="0" aria-label="点击切换人物照片" style="height:220px; margin-bottom:18px; transform:rotate(-2deg)">
-            <img data-page-node-id="6i8arvldNLT69ihkofWSkA" alt="林子炀" src="assets/UkMLDkk9OgbFsqHNO1LoqD.png">
-            <img data-page-node-id="xPhotoAlt01" class="ph-alt" alt="林子炀 · 白衣" src="assets/ceG3XEclkxYelVupBYKgaS.png">
+            <img data-page-node-id="6i8arvldNLT69ihkofWSkA" alt="林子炀" fetchpriority="high" decoding="async" src="assets/UkMLDkk9OgbFsqHNO1LoqD.png">
+            <img data-page-node-id="xPhotoAlt01" class="ph-alt" alt="林子炀 · 白衣" decoding="async" src="assets/ceG3XEclkxYelVupBYKgaS.png">
             <span data-page-node-id="CDwB47aKXwxtiOm8G1Rkfj" class="pc-sticker"><!--pnid:lT5I7GsXwN3oYfNlVD1esw-->正式登场</span>
             <span data-page-node-id="S7RDTvYTI9k7XWLOrvjvvA" class="pc-tag"><!--pnid:PwJ6GQF1gxhiUhrW99MLzc-->2027 届 · 求职进行中</span>
             <span data-page-node-id="xPhotoHint01" class="pc-flip">点击换一张 ↺</span>
@@ -2431,7 +2512,7 @@ footer .f-ghost{
           <path data-page-node-id="ckPQSxhFXrrhaiUY56y1qe" d="M888 508 l-26 0 l8 -8 l18 0 z M888 508 l0 -26 l-8 8 l0 18 z"/>
         </g>
       </svg>
-      <div data-page-node-id="h8FOqNPz6rKsQpkRYzBZs8" class="em-caption"><!--pnid:sPHLwKZuXFIaUErtEp96HJ-->探险手记 · 点击红叉标记即刻前往——已探明的工坊会留下 <b data-page-node-id="elsvY2PybqHMHySZKRXOFc"><!--pnid:QNSDT3tK9pGN1hojcRyWYF-->✓</b><!--pnid:UiFqTDz0lJbsgH1eMkkkHG-->，探明越多越亮；集齐三坊，整张地图全亮。</div>
+      <div data-page-node-id="h8FOqNPz6rKsQpkRYzBZs8" class="em-caption"><!--pnid:sPHLwKZuXFIaUErtEp96HJ-->探险手记 · 点击红叉标记即刻前往</div>
     </div>
   </div>
   </div>
@@ -2505,26 +2586,28 @@ footer .f-ghost{
               <span data-page-node-id="AFzEOOjlAJ1TOeOwIKojCs" class="tl-date"><!--pnid:y5LhSOLbLsotSofzQKGN6H-->2026.09 — 至今</span>
               <h4 data-page-node-id="4pzfjOVJYszZLO7G074JLp"><!--pnid:DiDJNh4x1VTwz8dYQEB2jO-->美团 · 学习发展-在线学习 <span data-page-node-id="hWszs5qoOGHrj7SpvWutwd" class="co"><!--pnid:KAJcRLFsR2D5cA2EBpC9ej-->｜ 产品运营实习生（AI 智能学习）</span></h4>
               <ul data-page-node-id="a6cdRfEUxLbeaoIzqHoMAN">
-                <li data-page-node-id="7HTaIo3NID8Zjj09MxInFU"><b data-page-node-id="LuLeGyclfsQZG6YUT1OBb9"><!--pnid:mD9yU2gkWv8d628eDv929b-->策略验证：</b><!--pnid:SSVKQj1H77Ez3uDXtodqx1-->在美团行家 AI 学习产品内测社群中以内容供给带动互动，验证「内容驱动活跃」策略假设。</li>
-                <li data-page-node-id="mkhe4irz2KyqmADNDycUJp"><b data-page-node-id="HlcwYzFNoObXq8sIxcrv4V"><!--pnid:bhU3tjpiIGUaI16h2K6Uy8-->专题与节点运营：</b><!--pnid:p6GpOhFvdxNm2oUdjHgZOm-->覆盖内测、社群、专题节点 3 条运营线，联动产品、研发落地关键节点。</li>
-                <li data-page-node-id="KUZjZmi3ifKDDjYuH4ePxG"><b data-page-node-id="9sX0WMgd52q8RsNySlGe1L"><!--pnid:vpqyDxh5TmKHpWH0goO3I3-->需求与 PRD：</b><!--pnid:KQEoGFFARc3958QfLEdlBx-->参与 Skill 功能设计，基于用户反馈做需求分析，输出 PRD 跟进上线，形成「需求—方案—上线」闭环。</li>
-                <li data-page-node-id="rHQqab6QZiXqLZbahSfKtI"><b data-page-node-id="XrmrqU6sVKYVm5HoZTopMX"><!--pnid:FxicLhbGz6n1kTc2JXLi5Y-->内容沉淀：</b><!--pnid:4eMhABMtcX3ENjYv7Uk05h-->承担 AI 辅助内容沉淀与公共能力开发 2 项工作。</li>
+                <li data-page-node-id="7HTaIo3NID8Zjj09MxInFU"><b data-page-node-id="LuLeGyclfsQZG6YUT1OBb9"><!--pnid:mD9yU2gkWv8d628eDv929b-->供给运营：</b><!--pnid:SSVKQj1H77Ez3uDXtodqx1-->运营行家平台「话题 × 行家」双端供给：以选题挖掘与行家招募激励拉动增长，任内新增话题 224 个（上架率 79.6%）、行家 196 位（近 14 天环比 +20%），人均话题 1.14、可预约率 100%，支撑 1 万+ 注册用户的咨询场景。</li>
+                <li data-page-node-id="mkhe4irz2KyqmADNDycUJp"><b data-page-node-id="HlcwYzFNoObXq8sIxcrv4V"><!--pnid:bhU3tjpiIGUaI16h2K6Uy8-->转化诊断：</b><!--pnid:p6GpOhFvdxNm2oUdjHgZOm-->用增长公式（行家数 × 人均话题数 × 可预约率 × 话题被咨询率 × 平均单量）拆解咨询链路，定位主瓶颈为话题被咨询率 2.7%、详情页转化率 1.0%；推动内容优化与曝光匹配后，话题平均单量环比 +133%、累计咨询单量环比 +367%，满意度保持 5.00。</li>
+                <li data-page-node-id="KUZjZmi3ifKDDjYuH4ePxG"><b data-page-node-id="9sX0WMgd52q8RsNySlGe1L"><!--pnid:vpqyDxh5TmKHpWH0goO3I3-->数据体系：</b><!--pnid:KQEoGFFARc3958QfLEdlBx-->搭「核心结果—增长驱动—过程诊断」三层看板做日常监控与双专题复盘，梳理专题需求口径与转化漏斗；识别专题 UV 口径偏差、PV 采集中断 2 处埋点异常并推动修复，保障复盘数据可信。</li>
+                <li data-page-node-id="rHQqab6QZiXqLZbahSfKtI"><b data-page-node-id="XrmrqU6sVKYVm5HoZTopMX"><!--pnid:FxicLhbGz6n1kTc2JXLi5Y-->需求落地：</b><!--pnid:4eMhABMtcX3ENjYv7Uk05h-->独立撰写管理员后台 PRD（角色判定规则、字段设计、风险对策，2 轮迭代），参照平台真实数据结构设计数据表，以 NoCode + Supabase 完成「管理员体系」模块从 PRD 到上线的端到端交付，通过 33 项数据库校验测试。</li>
+                <li><b>AI 应用：</b>以提示词工程 + 知识库检索（RAG）搭 AI 学习助手 Agent，实现学习任务卡每日自动生成、答题批改与个性化答疑，沉淀个人学习档案。</li>
               </ul>
             </div>
             <div data-page-node-id="KkpRxqe9AKtV5iqCHyolxq" class="tl-item hot">
               <span data-page-node-id="fc8dN8M1HLG14SNm4BQcAr" class="tl-date"><!--pnid:5cDHMa4LRG8aT9nYgQmppb-->2026.07 — 2026.09</span>
               <h4 data-page-node-id="ruZ9DrJt5i7whdTPJu73cv"><!--pnid:Vh43SyRkrnp4KXHxJHeqeA-->美团 · 培训运营 <span data-page-node-id="U9FmaDrseasFDpROkzvH7b" class="co"><!--pnid:0KtEsUJ0NBsw3zDDg9UfX9-->｜ 新员工培养（萌芽校招生成长计划）</span></h4>
               <ul data-page-node-id="4e4bEwyBMbETtSm6lG5EPh">
-                <li data-page-node-id="Va57wiMKwOoRp1hlC6WueE"><b data-page-node-id="lP7jF3ipkATaf9VyAyXP5o"><!--pnid:9NEIpNBKdfGtxOdYpLx629-->场次统筹：</b><!--pnid:RwZyUWSVh6lQJaPC38y7WK-->4 人现场团队中担任场次主负责人：3 城并行、每期 80–100 人；训前统筹分工物料与讲师节奏，训中推进流程与出勤核验，训后输出观察与改进点。</li>
-                <li data-page-node-id="FNoblf2Ofvie3k5HsFraUV"><b data-page-node-id="zlVhiCL9OMV5VEsY2dnMMH"><!--pnid:TZkFTOTlFuXy4oUB0mwDgz-->数据复盘：</b><!--pnid:klbjJgQHKCPBu3nd6sID0O-->每日发布课后问卷收集讲师评分与课程评价，定位痛点「理论讲授脱离工作场景」，发现满意度「首日偏高、次日最低、末日回升」规律并写入改进项。</li>
-                <li data-page-node-id="ln12bE1Xc8W4eGL9YVGufl"><b data-page-node-id="ilPVmRtJq8VDFoqLGyffUY"><!--pnid:JRy4OtJNK9L6sC8KGFy2Uh-->沙盘计算系统（0→1）：</b><!--pnid:ft2wLMhc9maL01r6GA6AgC-->针对纸质合同易乱、评奖依赖人工核算的痛点，自发立项用 AI Coding 搭建线上系统，覆盖交易登记、自动计算、成绩统奖 3 大功能。</li>
+                <li data-page-node-id="Va57wiMKwOoRp1hlC6WueE"><b data-page-node-id="lP7jF3ipkATaf9VyAyXP5o"><!--pnid:9NEIpNBKdfGtxOdYpLx629-->场次统筹：</b><!--pnid:RwZyUWSVh6lQJaPC38y7WK-->4 人现场团队中担任场次主负责人：3 城并行、每期 80–100 人；训前统筹分工物料，训中推进流程与出勤核验，训后输出学员观察；对接讲师、场地、酒店、供应商 4 类角色建立统一信息通路，保障 3 城节奏一致。</li>
+                <li data-page-node-id="FNoblf2Ofvie3k5HsFraUV"><b data-page-node-id="zlVhiCL9OMV5VEsY2dnMMH"><!--pnid:TZkFTOTlFuXy4oUB0mwDgz-->数据复盘：</b><!--pnid:klbjJgQHKCPBu3nd6sID0O-->每日发布课后问卷收集讲师评分与课程评价，归类开放意见定位「理论讲授脱离工作场景、学员偏好互动」痛点，发现满意度「首日偏高、次日最低、末日回升」规律并写入改进项。</li>
+                <li data-page-node-id="ln12bE1Xc8W4eGL9YVGufl"><b data-page-node-id="ilPVmRtJq8VDFoqLGyffUY"><!--pnid:JRy4OtJNK9L6sC8KGFy2Uh-->沙盘计算系统（0→1）：</b><!--pnid:ft2wLMhc9maL01r6GA6AgC-->针对纸质合同易乱、评奖依赖人工核算的痛点，自发立项用 AI Coding 搭建线上系统，覆盖交易登记、自动计算、成绩统奖 3 大功能；支持大屏投屏，逐场迭代并在 3 城场次间复用。</li>
                 <li data-page-node-id="lKS0fVo8M6WUnWWwAsG3XS"><b data-page-node-id="amREqoqN2sWLuKnlzntgir"><!--pnid:nvfWVlti9mvcMcsihjOtWI-->运营助手：</b><!--pnid:HlHoXVMYR0XIky99MfTXGj-->与 mentor 对齐优先级后完成 4 个模块：SOP 自动生成个人待办、讲师排期看板、礼品库存与积分兑换看板、话术模板库。</li>
               </ul>
             </div>
             <div data-page-node-id="sWITndvJxK0jpME9wyxIQp" class="tl-item">
               <span data-page-node-id="VgVoAhBDkZukBrk5PPSJ85" class="tl-date"><!--pnid:o8ArAJ7MzJe9w0DolK12eU-->2026.03 — 2026.06</span>
-              <h4 data-page-node-id="4OnEKIl4unvN7k7zOeZSyC"><!--pnid:IBQB2BCaNpAs9sEXysxz9m-->安永华明会计师事务所 · 市场部 <span data-page-node-id="fAsSuPygVQ2MffjxZ0ZeqB" class="co"><!--pnid:J5enaZmhAM2q2XAnF2vcWG-->｜ 品牌传播、媒体运营实习生</span></h4>
+              <h4 data-page-node-id="4OnEKIl4unvN7k7zOeZSyC"><!--pnid:IBQB2BCaNpAs9sEXysxz9m-->安永华明会计师事务所 · 市场部 <span data-page-node-id="fAsSuPygVQ2MffjxZ0ZeqB" class="co"><!--pnid:J5enaZmhAM2q2XAnF2vcWG-->｜ 品牌传播与媒体运营实习生</span></h4>
               <ul data-page-node-id="9km6LUKSlCgoUwChbBFpkY">
+                <li><b>消博会项目：</b>参与「2026 中国国际消费品博览会」品牌传播主题方案全周期策划，输出推文 10+ 篇、短视频 3 条，项目总曝光近 47 万；统筹 13 场展台活动物料并对接业务线负责人。</li>
                 <li data-page-node-id="5ftK6VcA0UASH3xBZIyxZ0"><b data-page-node-id="anE8jKg3DaLxtRgRpdozaF"><!--pnid:cvZFvT1cmgpRjFl76ElopK-->内容运营：</b><!--pnid:f5LHfKylGVIItfM3PBltDu-->参与官方公众号推文制作与排版，累计 40+ 篇，最高单篇阅读 1.1 万。</li>
                 <li data-page-node-id="pgE26Or0pfwPBBjIsnusVE"><b data-page-node-id="RsvvNUHtwFbbVtbrC5h8dk"><!--pnid:MlkvODMxfwbrbSkIVWL5xb-->数据与竞品分析：</b><!--pnid:yxqctFOyI1W7JrrHGWihL4-->基于阅读量、互动率完成 2 份公众号数据分析与 1 份竞品分析。</li>
               </ul>
@@ -2532,6 +2615,9 @@ footer .f-ghost{
             <div data-page-node-id="oPAdvZ5xARPtqlB88vO2Ph" class="tl-item">
               <span data-page-node-id="SLwrMVvCOVSmdj6PYJsQTC" class="tl-date"><!--pnid:2oy7bb2VC2lPGetPXaOwyG-->2025.07 — 2025.08</span>
               <h4 data-page-node-id="F5Di878M95q2BapEY4J7f2"><!--pnid:hR16JfcbcJkXeZh1sPKC8N-->中国人寿 <span data-page-node-id="x4L4HmXcjBHWSMP3bz2SBP" class="co"><!--pnid:JNFCmH6kr4CHFPeTY9KBYB-->｜ 销售实习生（电话外呼，沟通客户保障需求）</span></h4>
+              <ul>
+                <li><b>客户触达：</b>电话外呼触达客户，沟通并记录保障需求；在真实销售场景里练客户沟通与需求记录的基本功。</li>
+              </ul>
             </div>
           </div>
         </div>
@@ -2897,7 +2983,7 @@ footer .f-ghost{
           <path data-page-node-id="awoaZSLjOAEd7uZvqrKoRM" d="M888 508 l-26 0 l8 -8 l18 0 z M888 508 l0 -26 l-8 8 l0 18 z"/>
         </g>
       </svg>
-      <div data-page-node-id="gVjzkcVx6QJTkK4mnShaLj" class="em-caption"><!--pnid:X6SiRhOAbc4KFO3V4Ur6eE-->探险手记 · 点击红叉标记即刻前往——已探明的工坊会留下 <b data-page-node-id="7nlfL98OXh9Wa82GbIBJpw"><!--pnid:qMOrKqGKhA2l3Ovk6cTo9Y-->✓</b><!--pnid:pTb1KZmmfHMaj6qP2k5mth-->，探明越多越亮；集齐三坊，整张地图全亮。</div>
+      <div data-page-node-id="gVjzkcVx6QJTkK4mnShaLj" class="em-caption"><!--pnid:X6SiRhOAbc4KFO3V4Ur6eE-->探险手记 · 点击红叉标记即刻前往</div>
     </div>
   </div>
       <div data-page-node-id="5RiR2QMZwdanZNOaXaP4sV" class="breathe rv">
@@ -3175,7 +3261,7 @@ footer .f-ghost{
           <path data-page-node-id="a91XtPyj0AwzLF4XEjcHoV" d="M888 508 l-26 0 l8 -8 l18 0 z M888 508 l0 -26 l-8 8 l0 18 z"/>
         </g>
       </svg>
-      <div data-page-node-id="oIHPUvL3xY511U9GiNUyfi" class="em-caption"><!--pnid:SnVW7Av8MkQG74nAIxhz4h-->探险手记 · 点击红叉标记即刻前往——已探明的工坊会留下 <b data-page-node-id="inC0RxNq8ZSF7a5z83xbo5"><!--pnid:edqjXwSTwZZJa21hkMtFIX-->✓</b><!--pnid:4AYvu46mtbFoSGcqKNdqRm-->，探明越多越亮；集齐三坊，整张地图全亮。</div>
+      <div data-page-node-id="oIHPUvL3xY511U9GiNUyfi" class="em-caption"><!--pnid:SnVW7Av8MkQG74nAIxhz4h-->探险手记 · 点击红叉标记即刻前往</div>
     </div>
   </div>
       <div data-page-node-id="LBtgdabbc9lvaTY3JFKkPu" class="breathe rv">
@@ -3544,7 +3630,7 @@ footer .f-ghost{
           <path data-page-node-id="WfppCrCLkmiFVAFENgU8Cr" d="M888 508 l-26 0 l8 -8 l18 0 z M888 508 l0 -26 l-8 8 l0 18 z"/>
         </g>
       </svg>
-      <div data-page-node-id="NprDZWT8A9ZDxgbwBCOTzJ" class="em-caption"><!--pnid:2g8DPxnFi1eMq9hVOUZVDG-->探险手记 · 点击红叉标记即刻前往——已探明的工坊会留下 <b data-page-node-id="CJlpV3NLiE5nRwg0MZQLRk"><!--pnid:Vl6VXa3WwUgnMbURiQumIs-->✓</b><!--pnid:Kd2VBz6vYysiv4Vwf51WoX-->，探明越多越亮；集齐三坊，整张地图全亮。</div>
+      <div data-page-node-id="NprDZWT8A9ZDxgbwBCOTzJ" class="em-caption"><!--pnid:2g8DPxnFi1eMq9hVOUZVDG-->探险手记 · 点击红叉标记即刻前往</div>
     </div>
   </div>
       <div data-page-node-id="5QStNwhJneq9hisgEEnpXd" class="breathe rv">
@@ -3577,9 +3663,9 @@ footer .f-ghost{
     <p class="game-tip">这一页不在导航里——能翻到这儿，说明你把地图上的每个红叉都点过了。</p>
 
     <div class="shots game-shots">
-      <div class="shot"><img alt="新宿决战 · 标题界面" src="assets/Ok5MZ1FCElpMeluAKtIY7p.jpg"></div>
-      <div class="shot"><img alt="战斗开场 · 术式演出" src="assets/IA9bJlbX5SpWdma5OZUD1n.jpg"></div>
-      <div class="shot"><img alt="领域对拼" src="assets/SbmWeNFiv9kxgxiYXk0PZs.jpg"></div>
+      <div class="shot"><img alt="新宿决战 · 标题界面" loading="lazy" decoding="async" src="assets/Ok5MZ1FCElpMeluAKtIY7p.jpg"></div>
+      <div class="shot"><img alt="战斗开场 · 术式演出" loading="lazy" decoding="async" src="assets/IA9bJlbX5SpWdma5OZUD1n.jpg"></div>
+      <div class="shot"><img alt="领域对拼" loading="lazy" decoding="async" src="assets/SbmWeNFiv9kxgxiYXk0PZs.jpg"></div>
     </div>
 
     <div class="game-note">
@@ -3616,7 +3702,7 @@ footer .f-ghost{
 <footer data-page-node-id="NhbMjTOJZGsDdTmcycGWV2">
   <div data-page-node-id="kI4hyQrhHrpABFkDAFNEXZ" class="wrap" style="position:relative; z-index:2">
     <div data-page-node-id="D7izymAMqdHLlxZnSvlcd6" style="display:flex; gap:28px; align-items:center; flex-wrap:wrap">
-      <img data-page-node-id="VSxq4lExR4OoleI1fsvkYn" alt="林子炀" class="avatar-round" src="assets/bTGNANfN3T913ad8XBAzn2.png">
+      <img data-page-node-id="VSxq4lExR4OoleI1fsvkYn" alt="林子炀" class="avatar-round" loading="lazy" decoding="async" src="assets/bTGNANfN3T913ad8XBAzn2.png">
       <div data-page-node-id="4UuMGLv7lKoiqlOVm00XXd" style="flex:1; min-width:260px">
         <div data-page-node-id="2sfHk3v4wJU200mYCI0Zdu" class="f-title"><!--pnid:CBTuYkZO7U8hr1eIDJ9eHH-->下一章，想与你同走一程。</div>
         <div data-page-node-id="hg8LHT6eSsgtABxuaTkI6P" class="f-sub" style="margin-bottom:0"><!--pnid:A3KJrXL9iJm8OKqHqLUNYl-->吉林大学商科背景，AI 学习实践者，能抗压、爱思考。若这个网站让你觉得「这个人有点意思」，欢迎来聊聊。</div>
@@ -4456,7 +4542,8 @@ function showExploreNote(id, custom){
 
      注意这里不新建 Audio —— 用 head 里那个已经起播的元素，别再起一份。 */
   var bgm = window.__bgmEl || new Audio();
-  bgm.preload  = "auto";
+  /* 保留 head 里的决定：微信一类套壳是 "none"，别在这里又改回 auto 把 2.4MB 拉下来 */
+  bgm.preload  = window.__bgmLite ? "none" : "auto";
   bgm.loop     = false;
   bgm.playsInline = true;
   if(!bgm.src) bgm.src = "assets/bgm.mp3";
@@ -4725,7 +4812,7 @@ function showExploreNote(id, custom){
   function bgmRebuild(){
     var old = bgm;
     var a = new Audio();
-    a.preload = "auto";
+    a.preload = window.__bgmLite ? "none" : "auto";
     a.loop = false;
     a.playsInline = true;
     a.muted = false;
