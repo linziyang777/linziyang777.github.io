@@ -4203,12 +4203,127 @@ function showExploreNote(id, custom){
     o.connect(g); g.connect(audioCtx.destination);
     o.start(t); o.stop(t+0.1);
   }
+  /* ---- 背景音乐：循环 + 每轮首尾淡入淡出 ----
+     和上面的合成音效共用同一个 AudioContext，但走独立的 gain 通道，
+     所以按钮 tick / 翻页 swoosh 的音量不受音乐影响，反过来也一样。
+     不用原生 loop：手动回卷，才能在每轮结尾把音量收到 0、开头再推上来，
+     接缝处听不出硬切。 */
+  var bgm = new Audio();
+  bgm.preload  = "none";        // 等用户第一次手势才开始拉数据，不拖首屏
+  bgm.loop     = false;
+  bgm.playsInline = true;
+  bgm.src      = "assets/bgm.mp3";
+
+  var BGM_VOL    = 0.26;        // 目标音量：背景垫乐，压得比较低
+  var BGM_IN     = 2.6;         // 每轮开头淡入（秒）
+  var BGM_OUT    = 3.2;         // 每轮结尾淡出（秒）
+  var BGM_SWITCH = 800;         // 开关切换的淡化时长（毫秒）
+
+  var bgmGain    = null;        // Web Audio 通道
+  var bgmWired   = false;       // 是否已接进 AudioContext
+  var bgmWanted  = true;        // 用户意图，跟 soundOn 同步
+  var bgmScale   = 0;           // 开关缩放 0~1，按真实时间向 bgmWanted 逼近
+  var bgmRaf     = 0;
+  var bgmLastTs  = 0;
+
+  function bgmWire(){
+    if(bgmWired) return;
+    ensureCtx();
+    bgmWired = true;
+    if(!audioCtx) return;       // 没有 AudioContext 就走 audio.volume 兜底
+    try{
+      var src = audioCtx.createMediaElementSource(bgm);
+      bgmGain = audioCtx.createGain();
+      bgmGain.gain.value = 0;
+      src.connect(bgmGain);
+      bgmGain.connect(audioCtx.destination);
+    }catch(e){
+      bgmGain = null;           // 接不进去就退回 audio.volume
+    }
+  }
+
+  /* 此刻该有多大声：曲首淡入 × 曲尾淡出 × 开关缩放 */
+  function bgmLevel(){
+    var d = bgm.duration, t = bgm.currentTime;
+    if(!isFinite(d) || d <= 0) return 0;
+    var lv = BGM_VOL;
+    if(t < BGM_IN) lv *= t / BGM_IN;
+    var left = d - t;
+    if(left < BGM_OUT) lv *= Math.max(0, left / BGM_OUT);
+    return lv * bgmScale;
+  }
+
+  function bgmFrame(ts){
+    bgmRaf = requestAnimationFrame(bgmFrame);
+    if(!bgmWired) return;
+
+    /* 开关缩放按「真实时间」推进，不按帧数——
+       低帧率或 rAF 被节流时，按帧计数会让淡入拖得很长（实测节流到 20fps 时
+       800ms 的淡入要跑两三秒）。切回前台那一帧的 dt 会很大，钳一下防跳变。 */
+    if(bgmLastTs === 0 || bgmLastTs == null) bgmLastTs = ts;
+    var dt = Math.min(120, ts - bgmLastTs);
+    bgmLastTs = ts;
+    var step = dt / BGM_SWITCH;
+    if(bgmWanted && bgmScale < 1) bgmScale = Math.min(1, bgmScale + step);
+    if(!bgmWanted && bgmScale > 0) bgmScale = Math.max(0, bgmScale - step);
+
+    var lv = bgmLevel();
+    if(bgmGain) bgmGain.gain.value = lv;
+    else bgm.volume = Math.min(1, lv);
+
+    /* 淡到没声了才真的停，省电 */
+    if(!bgmWanted && bgmScale <= 0.001 && !bgm.paused) bgm.pause();
+  }
+
+  function bgmStart(){
+    if(!bgmWanted) return;
+    bgmWire();
+    bgmLastTs = 0;
+    if(!bgmRaf) bgmRaf = requestAnimationFrame(bgmFrame);
+    if(bgm.paused){
+      var p = bgm.play();
+      if(p && p.catch) p.catch(function(){});   // 被自动播放策略拦下就等下一次手势
+    }
+  }
+
+  /* 一轮放完：回卷重来。结尾那 3.2 秒已经淡到 0，切回开头听不出接缝 */
+  bgm.addEventListener("ended", function(){
+    if(!bgmWanted) return;
+    try{ bgm.currentTime = 0; }catch(e){}
+    bgmStart();
+  });
+
+  /* 浏览器不允许无交互自动播放，等第一次点击/按键再开声 */
+  function bgmFirstGesture(){
+    document.removeEventListener("pointerdown", bgmFirstGesture);
+    document.removeEventListener("keydown", bgmFirstGesture);
+    ensureCtx();
+    bgmStart();
+  }
+  document.addEventListener("pointerdown", bgmFirstGesture, {passive:true});
+  document.addEventListener("keydown", bgmFirstGesture);
+
+  window.__bgmStart = bgmStart;
+  window.__bgmInfo = function(){
+    return {
+      t: +bgm.currentTime.toFixed(2),
+      d: isFinite(bgm.duration) ? +bgm.duration.toFixed(2) : null,
+      vol: bgmGain ? +bgmGain.gain.value.toFixed(4) : +bgm.volume.toFixed(4),
+      scale: +bgmScale.toFixed(3),
+      paused: bgm.paused,
+      wanted: bgmWanted,
+      wired: bgmWired
+    };
+  };
+
   window.__swoosh = playSwoosh;
   soundToggle.addEventListener("click", function(){
     soundOn = !soundOn;
+    bgmWanted = soundOn;
     this.classList.toggle("on", soundOn);
     this.lastChild.textContent = soundOn ? "声音 ON" : "声音 OFF";
-    if(soundOn){ ensureCtx(); playTick(); }
+    if(soundOn){ ensureCtx(); playTick(); bgmStart(); }
+    /* 关掉时不立刻 pause：交给 bgmFrame 把音量淡下去再停 */
   });
   /* 导航 hover 轻 tick */
   document.querySelectorAll("a,button").forEach(function(el){
