@@ -197,42 +197,96 @@ body::before{
 .ghost-word .gw-inner{display:inline-block;transform:rotate(-8deg);}
 .ghost-word.swap{opacity:0;}
 
-/* ============ 翻页过渡 ============ */
+/* ============ 翻页过渡 · 启程卷轴 ============
+   原来是八条墨杠横扫 + 拟声词，走的是漫画分镜语言；但这一站的故事线是
+   「探险地图」——去一座工坊，就是地图上走完一段路。所以转场改成展开一卷手卷：
+   羊皮纸从右往左铺开，两根墨木杆压着纸的两缘，纸上有一条虚线足迹往下一站走，
+   罗盘在角落里摆正，中央落这一章的名字，右下盖一枚朱印。
+   只动 transform / opacity；prefers-reduced-motion 时整层直接不显示（见降级段）。 */
 .wipe{
   position:fixed;inset:0;z-index:1200;pointer-events:none;display:none;
 }
 .wipe.on{display:block;}
-.wipe .bar{
-  position:absolute;left:-10%;width:120%;height:12.5%;
-  background:var(--ink);transform:skewY(-6deg) scaleX(0);transform-origin:left center;
-  box-shadow:inset 0 -8px 16px rgba(var(--glow-rgb),.25);
+/* 纸后的天光：雾薄荷水彩 + 半色调网点，和首页动画背景同一套语言 */
+.wipe .wp-sky{
+  position:absolute;inset:0;
+  background:radial-gradient(700px 420px at 86% -6%, rgba(249,239,200,.6), rgba(249,239,200,0) 70%),
+             radial-gradient(560px 380px at 6% 16%, rgba(213,175,161,.22), rgba(213,175,161,0) 72%),
+             linear-gradient(180deg,#eef4f0 0%,#e6efe9 58%,#dde9e2 100%);
 }
-.wipe .b1{top:0%;}.wipe .b2{top:12.5%;background:var(--c2);}.wipe .b3{top:25%;}.wipe .b4{top:37.5%;background:var(--c2);}
-.wipe .b5{top:50%;background:var(--c1);}.wipe .b6{top:62.5%;background:var(--c2);}.wipe .b7{top:75%;}.wipe .b8{top:87.5%;background:var(--c1);}
-.wipe.on .bar{animation:wipein .45s cubic-bezier(.6,0,.3,1) forwards;}
-.wipe.off .bar{animation:wipeout .45s cubic-bezier(.6,0,.3,1) forwards;}
-@keyframes wipein{from{transform:skewY(-6deg) scaleX(0);}to{transform:skewY(-6deg) scaleX(1);}}
-@keyframes wipeout{from{transform:skewY(-6deg) scaleX(1);transform-origin:right center;}to{transform:skewY(-6deg) scaleX(0);transform-origin:right center;}}
+.wipe .wp-sky::after{content:"";position:absolute;inset:0;opacity:.5;
+  background-image:radial-gradient(rgba(69,123,125,.14) 1.4px,transparent 1.5px);
+  background-size:13px 13px;}
+/* 卷起的纸：整张从右进、往左出。上下各留 3% 出血，转动时不会露边。 */
+.wipe .wp-sheet{
+  position:absolute;top:-3%;bottom:-3%;left:-3%;right:-3%;
+  background:var(--paper);
+  border-left:3px solid rgba(107,83,53,.4);border-right:3px solid rgba(107,83,53,.4);
+  box-shadow:0 30px 90px rgba(var(--ink-rgb),.4);
+  transform:translateX(104%) rotate(1.4deg);will-change:transform;overflow:hidden;
+}
+.wipe.on .wp-sheet{animation:wpsheetIn .45s cubic-bezier(.7,0,.25,1) forwards;}
+.wipe.off .wp-sheet{animation:wpsheetOut .45s cubic-bezier(.55,0,.3,1) forwards;}
+@keyframes wpsheetIn{from{transform:translateX(104%) rotate(1.4deg);}to{transform:translateX(0) rotate(0deg);}}
+@keyframes wpsheetOut{from{transform:translateX(0) rotate(0deg);}to{transform:translateX(-104%) rotate(-1.4deg);}}
+/* 两根卷轴杆：跟着纸走，进出都带着「卷」的实体感 */
+.wipe .wp-rod{position:absolute;top:-1%;bottom:-1%;width:22px;border-radius:11px;
+  background:linear-gradient(90deg,#31514d,#5c7f79 45%,#24403c);
+  box-shadow:0 12px 34px rgba(0,0,0,.28);}
+.wipe .wp-rod.r1{left:-13px;}
+.wipe .wp-rod.r2{right:-13px;}
+/* 纸上的足迹：虚线往下一站走（和地图上 emDash 的点状行进同一语言） */
+.wipe .wp-map{position:absolute;inset:0;width:100%;height:100%;}
+.wipe .wp-trail{stroke-dasharray:2 16;animation:wpmarch .9s linear infinite;}
+@keyframes wpmarch{to{stroke-dashoffset:-36;}}
+/* 途经的红叉：纸铺稳了才亮起来，像在图上钉下一站 */
+.wipe .wp-x{opacity:0;transform:scale(.4);animation:wpxin .4s .32s cubic-bezier(.3,1.6,.5,1) forwards;}
+.wipe.off .wp-x{animation:none;opacity:0;}
+@keyframes wpxin{to{opacity:1;transform:scale(1);}}
+/* 罗盘：纸右上角，随纸展开轻轻摆正 */
+.wipe .wp-compass{position:absolute;right:4.5%;top:9%;width:clamp(90px,10vw,150px);height:auto;
+  color:#6b5335;opacity:.92;filter:drop-shadow(0 6px 16px rgba(var(--ink-rgb),.2));}
+.wipe.on .wp-compass{animation:wpcompass .9s ease-in-out both;}
+@keyframes wpcompass{from{transform:rotate(-42deg);}to{transform:rotate(0deg);}}
+/* 朱印：落在章名右下，像盖下去的一枚章 */
+.wipe .wp-seal{
+  position:absolute;left:50%;top:57%;margin-left:clamp(130px,17vw,240px);
+  font-family:"Zen Maru Gothic","Noto Sans SC";font-weight:900;font-size:clamp(15px,1.8vw,22px);
+  color:#fff;background:var(--c1);border:2.5px solid rgba(107,83,53,.5);border-radius:8px;
+  padding:7px 9px;letter-spacing:5px;writing-mode:vertical-rl;
+  transform:rotate(6deg) scale(.4);opacity:0;
+  box-shadow:0 6px 18px rgba(var(--ink-rgb),.25);
+}
+.wipe.on .wp-seal{animation:wpseal .45s .34s cubic-bezier(.3,1.5,.5,1) forwards;}
+.wipe.off .wp-seal{animation:none;opacity:0;}
+@keyframes wpseal{to{opacity:1;transform:rotate(6deg) scale(1);}}
+/* 章名：羊皮纸上用墨色，不再白字描边 */
 .wipe .sfx-big{
-  position:absolute;top:48%;left:50%;transform:translate(-50%,-50%) rotate(-8deg);
-  font-family:Georgia,"Songti SC","Zen Maru Gothic","Noto Sans SC",serif;font-weight:900;font-size:clamp(48px,9vw,110px);
-  color:#fff;-webkit-text-stroke:3px var(--ink);text-shadow:0 5px 14px rgba(var(--glow-rgb),.42);
-  opacity:0;
+  position:absolute;top:44%;left:50%;transform:translate(-50%,-50%) rotate(-6deg);
+  font-family:Georgia,"Songti SC","Zen Maru Gothic","Noto Sans SC",serif;font-weight:900;
+  font-size:clamp(52px,9vw,120px);color:var(--title);white-space:nowrap;opacity:0;
+  text-shadow:0 3px 0 rgba(107,83,53,.16),0 16px 34px rgba(var(--glow-rgb),.4);
 }
-.wipe.on .sfx-big{animation:sfxpop .45s .12s ease forwards;}
+.wipe.on .sfx-big{animation:sfxpop .5s .14s cubic-bezier(.3,1.4,.5,1) forwards;}
+.wipe.off .sfx-big{animation:sfxbye .3s ease forwards;}
+@keyframes sfxpop{0%{opacity:0;transform:translate(-50%,-50%) rotate(-6deg) scale(.4);}70%{opacity:1;transform:translate(-50%,-50%) rotate(-6deg) scale(1.1);}100%{opacity:1;transform:translate(-50%,-50%) rotate(-6deg) scale(1);}}
+@keyframes sfxbye{to{opacity:0;transform:translate(-50%,-58%) rotate(-6deg) scale(.96);}}
 .wipe-sub{
-  position:absolute;top:60%;left:50%;transform:translateX(-50%);
-  font-family:"Anton",sans-serif;font-size:14px;letter-spacing:4px;color:#fff;
-  text-shadow:0 2px 10px rgba(0,0,0,.4);opacity:0;white-space:nowrap;
+  position:absolute;top:59%;left:50%;transform:translateX(-50%);
+  font-family:"Anton",sans-serif;font-size:14px;letter-spacing:4px;color:#4c3a22;
+  opacity:0;white-space:nowrap;
 }
-.wipe.on .wipe-sub{animation:sfxpop .45s .2s ease forwards;}
+.wipe.on .wipe-sub{animation:subin .45s .24s ease forwards;}
+.wipe.off .wipe-sub{animation:subbye .3s ease forwards;}
+@keyframes subin{from{opacity:0;transform:translateX(-50%) translateY(10px);}to{opacity:1;transform:translateX(-50%) translateY(0);}}
+@keyframes subbye{to{opacity:0;transform:translateX(-50%) translateY(-8px);}}
 /* 开场揭幕这一下比常规翻页慢一档：人是被从画卷里「吐」出来的，
    0.45 秒太急，像被人一把推出去；0.6 秒才有那点被抛出的余韵。
    只影响揭幕这一次（类由 revealSite 加、收尾时摘掉），翻页还是 0.45s。 */
-#wipe.intro .bar{animation-duration:.6s;}
-#wipe.intro .sfx-big{animation-duration:.6s;animation-delay:.16s;}
-#wipe.intro .wipe-sub{animation-duration:.6s;animation-delay:.26s;}
-@keyframes sfxpop{0%{opacity:0;transform:translate(-50%,-50%) rotate(-10deg) scale(.4);}70%{opacity:1;transform:translate(-50%,-50%) rotate(-10deg) scale(1.12);}100%{opacity:1;transform:translate(-50%,-50%) rotate(-10deg) scale(1);}}
+#wipe.intro .wp-sheet{animation-duration:.6s;}
+#wipe.intro .sfx-big{animation-duration:.6s;animation-delay:.18s;}
+#wipe.intro .wp-seal{animation-delay:.4s;}
+#wipe.intro .wipe-sub{animation-duration:.6s;animation-delay:.3s;}
 
 /* ============ 导航 ============ */
 nav{
@@ -1172,12 +1226,15 @@ min-height:min(88vh,840px);display:flex;flex-direction:column;justify-content:ce
   #page-home .exp-map .em-head{order:1;margin-bottom:8px;}
   #page-home .exp-map .em-title{font-size:clamp(19px,2.2vw,24px);}
   #page-home .exp-map .em-canvas{
-    --em-h:clamp(300px,calc(100vh - 239px),640px);
     order:2;flex:none;align-self:center;
-    height:var(--em-h);
-    width:min(100%,calc(var(--em-h) * 1.7308));
+    /* 不再给 canvas 钉死高度。canvas 里除了地图 SVG，还有「探险手记 · 点击红叉」
+       那行图注；之前 canvas 钉了 vh 高度、SVG 又 height:100% 填满整个框，
+       图注只能溢出框外，正好压在下面的手记上 —— 电脑端两行「探险手记」叠在一起。
+       改成由宽度反推：SVG 走自身 900:520 的比例，图注在框内正常排队。
+       常数 284 = 导航 78 + 上边距 14 + 标题 85 + 图注 45 + 手记 35 + 余量 27。 */
+    width:min(100%,calc((100vh - 284px) * 1.7308));
   }
-  #page-home .exp-map .em-svg{width:100%;height:100%;}
+  #page-home .exp-map .em-svg{width:100%;height:auto;}
   #page-home .exp-map .hero-note{order:3;margin:10px 0 0;font-size:12.5px;line-height:1.55;padding:3px 0 3px 12px;}
 }
 .em-serif{font-family:Georgia,"Songti SC","Noto Serif SC",serif;}
@@ -2297,10 +2354,28 @@ footer .f-ghost{
 
 <!--pnid:Gl7BtfOKF2GARnLl33iRyH--><!-- 翻页动画层 -->
 <div data-page-node-id="Rhd0Covo4I7xXomrMGyXRy" class="wipe" id="wipe">
-  <div data-page-node-id="80h0HQOHZQRFZvQXxh1QfP" class="bar b1"></div><div data-page-node-id="Yj3cLBwNuYEascolvObS7o" class="bar b2"></div><div data-page-node-id="OEU3pdPlZ6inQdy2lYwAql" class="bar b3"></div><div data-page-node-id="XzeKZxETQcQcKuTryuMT1y" class="bar b4"></div>
-  <div data-page-node-id="lLGD8BIZa0MTJvKKPIhPu0" class="bar b5"></div><div data-page-node-id="NYnqbrMDI0skokf46739fp" class="bar b6"></div><div data-page-node-id="TTri1MYOBlYXCsBW698Tck" class="bar b7"></div><div data-page-node-id="fgAvwSylEF59kWLfcsVl7U" class="bar b8"></div>
+  <div class="wp-sky"></div>
+  <div class="wp-sheet">
+    <svg class="wp-map" viewBox="0 0 1200 675" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <!-- 一段往下一站去的虚线足迹，沿用地图上点状行进的语言 -->
+      <path class="wp-trail" d="M40 560 C 240 460, 420 600, 620 480 S 950 380, 1160 460" fill="none" stroke="#c96f4a" stroke-width="3.4" stroke-linecap="round" opacity=".8"/>
+      <!-- 途经点：小红叉，纸铺稳了才钉下去 -->
+      <g class="wp-x" stroke="#c96f4a" stroke-width="4.5" stroke-linecap="round">
+        <path d="M612 470 l18 18 M630 470 l-18 18"/>
+        <path d="M1086 442 l18 18 M1104 442 l-18 18"/>
+      </g>
+    </svg>
+    <svg class="wp-compass" viewBox="0 0 48 48" aria-hidden="true">
+      <circle cx="24" cy="24" r="21" fill="none" stroke="currentColor" stroke-width="2.5"/>
+      <path d="M24 6 L28 24 L24 42 L20 24 Z" fill="var(--c1)" opacity=".85"/>
+      <path d="M6 24 L24 20 L42 24 L24 28 Z" fill="var(--c2)" stroke="currentColor" stroke-width="1.5"/>
+      <circle cx="24" cy="24" r="3" fill="var(--paper)" stroke="currentColor" stroke-width="2"/>
+    </svg>
+    <div class="wp-rod r1"></div><div class="wp-rod r2"></div>
+  </div>
   <div data-page-node-id="EjZFdJk9Qr08hAdhriV2Lg" class="sfx-big"><!--pnid:97LKzS2MzVrQfavnHmssSv-->UNFOLD!</div>
   <div data-page-node-id="OIjndwoEezDgM764R28Du7" class="wipe-sub" id="wipeSub"><!--pnid:qetfm00n8AJeKTUFkaNp4N-->EXPLORER LOG · 前往工坊</div>
+  <div class="wp-seal">启程</div>
 </div>
 
 <!--pnid:xXE1gmSK4BXcYV5UqfIqwa--><!-- 导航 -->
