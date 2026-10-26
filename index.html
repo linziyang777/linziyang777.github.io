@@ -883,7 +883,10 @@ min-height:min(88vh,840px);display:flex;flex-direction:column;justify-content:ce
 .em-title{font-weight:900;font-size:clamp(20px,2.6vw,28px);color:#4c3a22;flex:1;
   font-family:Georgia,"Songti SC","Noto Serif SC","Noto Sans SC",serif;letter-spacing:1px;}
 .em-canvas{position:relative;z-index:1;}
-.em-svg{width:100%;height:auto;display:block;}
+/* 地图里有装饰画在 viewBox 之外（例如左上角 cx=0/cy=-22 的圆）。
+   SVG 默认 overflow:hidden，这些元素连同上边线与折角会被裁掉一半，
+   看起来就是「顶部边框不全」。放开裁剪，让它们完整画出来。 */
+.em-svg{width:100%;height:auto;display:block;overflow:visible;}
 .em-serif{font-family:Georgia,"Songti SC","Noto Serif SC",serif;}
 .em-trail{animation:emDash 1.8s ease-out both;}
 @keyframes emDash{from{stroke-dashoffset:640;}to{stroke-dashoffset:0;}}
@@ -3715,13 +3718,10 @@ document.querySelectorAll(".stat-band").forEach(function(el){ statIO.observe(el)
   var nav = document.querySelector("nav");
   if(!nav) return;
 
-  /* 手机端不做自动隐藏：
-     ① nav 是 sticky，translateY 只是视觉上移，文档流里那 111px 还占着，
-        收起来以后页面顶部会空出一道白，看起来像「顶端缺了一块」；
-     ② 手机手指滚动本来就抖，hide/show 来回切时 transform 动画互相打断，观感就是频闪。
-     两行高的 nav 常驻，反而更稳。 */
-  var narrow = window.matchMedia("(max-width:960px)");
-
+  /* 手机上 nav 占两行、约 111px，常驻会把地图这类贴顶的内容压掉一截，
+     所以仍然让它随滚动收起。真正要修的是「抖动」——原来阈值只有 4px，
+     指尖轻轻一颤 dy 就在 +4/-4 之间来回跳，transform 动画互相打断，
+     观感就是频闪。下面改成按同向累计位移做滞回。 */
   var lastY = (window.scrollY || window.pageYOffset || 0);
   var acc = 0;          // 同向累计位移，用来做滞回
   var ticking = false;
@@ -3734,14 +3734,6 @@ document.querySelectorAll(".stat-band").forEach(function(el){ statIO.observe(el)
     ticking = true;
     requestAnimationFrame(function(){
       var y = window.scrollY || window.pageYOffset || 0;
-
-      if(narrow.matches){
-        /* 手机上永远显示；万一从桌面宽度缩下来时带着 nav-hide，这里顺手清掉 */
-        if(nav.classList.contains("nav-hide")) show();
-        lastY = y; acc = 0; ticking = false;
-        return;
-      }
-
       var dy = y - lastY;
       lastY = y;
 
@@ -3752,8 +3744,7 @@ document.querySelectorAll(".stat-band").forEach(function(el){ statIO.observe(el)
       if((dy > 0 && acc < 0) || (dy < 0 && acc > 0)) acc = 0;
       acc += dy;
 
-      /* 下滑累计 70px 才收，上滑累计 40px 才放出来。
-         原来阈值只有 4px，指尖轻微抖动就能让 nav 反复抽动。 */
+      /* 下滑累计 70px 才收，上滑累计 40px 才放出来 */
       if(acc > 70){ hide(); acc = 0; }
       else if(acc < -40){ show(); acc = 0; }
 
