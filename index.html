@@ -4214,6 +4214,19 @@ function showExploreNote(id, custom){
   bgm.playsInline = true;
   bgm.src      = "assets/bgm.mp3";
 
+  /* 资料库那条链上，MP3 是作为页面产物挂在 CDN 的，
+     拿回来的 content-type 是 application/x-www-form-urlencoded，
+     浏览器直接判成「格式错误」，压根播不了（实测 MEDIA_ELEMENT_ERROR: Format error）。
+     GitHub Pages 上同一份文件是 audio/mp3，所以本地播不了就退过去。 */
+  var bgmFallbackUsed = false;
+  bgm.addEventListener("error", function(){
+    if(bgmFallbackUsed) return;
+    bgmFallbackUsed = true;
+    bgm.src = "https://linziyang777.github.io/assets/bgm.mp3";
+    try{ bgm.load(); }catch(e){}
+    if(bgmWanted) bgmStart();
+  });
+
   var BGM_VOL    = 0.26;        // 目标音量：背景垫乐，压得比较低
   var BGM_IN     = 2.6;         // 每轮开头淡入（秒）
   var BGM_OUT    = 3.2;         // 每轮结尾淡出（秒）
@@ -4226,19 +4239,27 @@ function showExploreNote(id, custom){
   var bgmRaf     = 0;
   var bgmLastTs  = 0;
 
+  /* iOS 上 audio.volume 是只读的，赋值不生效、音量会顶在 1——
+     背景音乐直接以最大音量播会吵死人。所以 iOS 改走 Web Audio 的 gain。
+     非 iOS 用 volume 就够了，还省掉 CORS 的麻烦（资料库链那份是跨域的）。 */
+  var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+              (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
   function bgmWire(){
     if(bgmWired) return;
-    ensureCtx();
     bgmWired = true;
-    if(!audioCtx) return;       // 没有 AudioContext 就走 audio.volume 兜底
+    if(!isIOS) return;            // 非 iOS：audio.volume 直接可用
+    ensureCtx();
+    if(!audioCtx) return;
     try{
       var src = audioCtx.createMediaElementSource(bgm);
       bgmGain = audioCtx.createGain();
       bgmGain.gain.value = 0;
       src.connect(bgmGain);
       bgmGain.connect(audioCtx.destination);
+      bgm.volume = 1;
     }catch(e){
-      bgmGain = null;           // 接不进去就退回 audio.volume
+      bgmGain = null;             // 接不进去就退回 volume（iOS 上会偏响，但总比没声强）
     }
   }
 
