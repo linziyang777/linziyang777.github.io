@@ -18,6 +18,19 @@
     a.loop = false;
     a.playsInline = true;
     a.src = "assets/bgm.mp3";
+    /* 资料库那条链的 MP3 挂在 CDN 上，拿回来的 content-type 是
+       application/x-www-form-urlencoded，浏览器不做内容嗅探，直接判格式错误。
+       既然注定播不了，就别先失败一次再切——在那条链上直接挂备用源。
+       备用源按顺序：分享链（腾讯云，国内快）→ GitHub Pages。 */
+    window.__bgmAlt = [
+      "https://liam-portfolio-66231.app.workbuddy.host/assets/bgm.mp3",
+      "https://linziyang777.github.io/assets/bgm.mp3"
+    ];
+    window.__bgmAltIdx = 0;
+    if(/codebuddy\.work$|^workbuddy\.link$/.test(location.hostname)){
+      a.src = window.__bgmAlt[0];
+      window.__bgmAltIdx = 1;
+    }
     /* 先压到目标音量。默认音量是 1，等主体脚本跑到 4400 行才调下来，
        中间这一两百毫秒会以满音量炸一下。数值跟下面的 BGM_VOL 保持一致。 */
     a.volume = 0.26;
@@ -4318,15 +4331,14 @@ function showExploreNote(id, custom){
   bgm.playsInline = true;
   if(!bgm.src) bgm.src = "assets/bgm.mp3";
 
-  /* 资料库那条链上，MP3 是作为页面产物挂在 CDN 的，
-     拿回来的 content-type 是 application/x-www-form-urlencoded，
-     浏览器直接判成「格式错误」，压根播不了（实测 MEDIA_ELEMENT_ERROR: Format error）。
-     GitHub Pages 上同一份文件是 audio/mp3，所以本地播不了就退过去。 */
-  var bgmFallbackUsed = false;
+  /* MP3 的备用源，按顺序退。head 里已经判定过：资料库那条链直接从第 1 个开始。
+     顺序是「分享链 → GitHub Pages」，腾讯云在国内比 GitHub 快得多。 */
+  var BGM_ALT   = window.__bgmAlt || ["https://linziyang777.github.io/assets/bgm.mp3"];
+  var bgmAltIdx = window.__bgmAltIdx || 0;
   function bgmFallback(){
-    if(bgmFallbackUsed) return;
-    bgmFallbackUsed = true;
-    bgm.src = "https://linziyang777.github.io/assets/bgm.mp3";
+    if(bgmAltIdx >= BGM_ALT.length) return;
+    bgm.src = BGM_ALT[bgmAltIdx];
+    bgmAltIdx++;
     try{ bgm.load(); }catch(e){}
     if(bgmStarted) bgmKick();     // 还没起播就只是换条源继续预载，别擅自开播
   }
@@ -4549,7 +4561,7 @@ function showExploreNote(id, custom){
     a.loop = false;
     a.playsInline = true;
     a.muted = false;
-    a.src = bgmFallbackUsed ? "https://linziyang777.github.io/assets/bgm.mp3" : "assets/bgm.mp3";
+    a.src = bgm.src || "assets/bgm.mp3";   // 沿用当前这条源，可能已经退到备用地址了
     bgm = a;
     bgmGain      = null;
     bgmWired     = false;
