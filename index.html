@@ -1937,6 +1937,25 @@ footer .f-ghost{
 @media (prefers-reduced-motion: reduce){.mega-bg *{animation:none!important}}
 
 /* ============ v24：手机端头部整理（一行控制 + 一行可横滑导航） ============ */
+/* ============ 标题「手绘成形」动画 ============
+   参考片的三段式：线稿笔画先画出来（带手绘抖动）→ 线稿沸腾一阵 →
+   实体字落墨盖掉线稿。只动 transform/opacity/clip-path/滤镜，
+   颜色一律取元素自己的前景色（--sk-ink），不改任何配色。 */
+.sk-on{
+  color:transparent !important;
+  -webkit-text-stroke:2.5px var(--sk-ink,#333);
+  text-shadow:none !important;
+  filter:url(#sketchF);
+  clip-path:inset(-20% 100% -30% -2%);
+  animation:skDraw .34s steps(5,end) forwards;
+}
+@keyframes skDraw{to{clip-path:inset(-20% -6% -30% -2%);}}
+.sk-fill{
+  color:var(--sk-ink,#333);
+  -webkit-text-stroke-color:transparent;
+  transition:color .32s ease,-webkit-text-stroke-color .32s ease,text-shadow .32s ease;
+}
+
 /* ============ v48：手机端排版收口 ============ */
 @media (max-width:720px){
   /* 手机端：地图仍在最前，人物卡片挪到底数一览下面（DOM 由 JS 搬，见「手机端名片归位」）。
@@ -4099,6 +4118,11 @@ function setPage(id, instant){
     }, 520);
   }
   showExploreNote(id);
+    /* 内页大标题：首次到访该页时手绘成形（揭幕后才演，别抢在幕布前面） */
+    if(window.__revealed && window.__sketch && id!=="home"){
+      var sk1=document.querySelector("#page-"+id+" .page-hero h1");
+      if(sk1 && !sk1.dataset.skDone) setTimeout(function(){ window.__sketch(sk1); }, 640);
+    }
     window.__wsVisit && window.__wsVisit(id);
   window.scrollTo({top:0, behavior: first ? "auto" : "smooth"});
   revealScan();
@@ -5212,6 +5236,7 @@ function showExploreNote(id, custom){
   function revealSite(){
     if (revealed) return;
     revealed = true;
+    window.__revealed = true;
     unlockView();
     playSwoosh();
     /* .intro 让幕布这一趟走 0.6s 而不是常规的 0.45s（见上面的 CSS），
@@ -5229,6 +5254,11 @@ function showExploreNote(id, custom){
       }, 620);
     }, 660);
     if (window.__homeSwapHold) window.__homeSwapHold();      /* 幕布后先定格：名片在上 */
+    /* 主名「林子炀」手绘成形：揭幕 0.26s 后起笔，只演这一次 */
+    if(window.__sketch) setTimeout(function(){
+      if(current==="home") window.__sketch(document.querySelector("#page-home .hero-name"));
+      else { var skh=document.querySelector("#page-"+current+" .page-hero h1"); if(skh) window.__sketch(skh); }
+    }, 260);
     if (window.__homeSwap) setTimeout(window.__homeSwap, 2600); /* 停 2.6s 后换位（1.3s） */
   }
 
@@ -5418,6 +5448,47 @@ function showExploreNote(id, custom){
   apply();
   window.addEventListener("resize", apply, {passive:true});
   window.addEventListener("orientationchange", apply, {passive:true});
+})();
+
+/* ============ 标题手绘成形动画（参考片 57772.mp4） ============
+   三段：0~0.34s 线稿从左往右「画」出来（clip-path 阶梯推进 + 大幅湍流位移）；
+   0.34~1.25s 线稿沸腾（每 85ms 换一次湍流种子，笔画手绘抖动）；
+   1.25s 起实体字落墨盖掉线稿（颜色/描边过渡 0.32s），完毕后滤镜整个拆掉。
+   颜色取元素自己的前景色，字体字重都不动；prefers-reduced-motion 直接跳过。 */
+(function(){
+  var svg=null;
+  function ensureFilter(){
+    if(svg) return;
+    svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
+    svg.setAttribute("width","0");svg.setAttribute("height","0");
+    svg.style.position="absolute";
+    svg.innerHTML='<filter id="sketchF" x="-20%" y="-40%" width="140%" height="180%">'+
+      '<feTurbulence type="fractalNoise" baseFrequency="0.011 0.07" numOctaves="2" seed="3" result="n"/>'+
+      '<feDisplacementMap in="SourceGraphic" in2="n" scale="11" xChannelSelector="R" yChannelSelector="G"/></filter>';
+    document.body.appendChild(svg);
+  }
+  window.__sketch=function(el){
+    if(!el||el.dataset.skDone) return;
+    if(window.matchMedia("(prefers-reduced-motion: reduce)").matches){ el.dataset.skDone="1"; return; }
+    el.dataset.skDone="1";
+    ensureFilter();
+    var t=svg.querySelector("feTurbulence"), dm=svg.querySelector("feDisplacementMap");
+    el.style.setProperty("--sk-ink",getComputedStyle(el).color);
+    var shadow=getComputedStyle(el).textShadow;
+    el.classList.add("sk-on");
+    var iv=setInterval(function(){ t.setAttribute("seed",String(1+Math.floor(Math.random()*99))); },85);
+    setTimeout(function(){ dm.setAttribute("scale","7"); },340);
+    setTimeout(function(){
+      clearInterval(iv);
+      el.classList.remove("sk-on"); el.classList.add("sk-fill");
+      el.style.textShadow=shadow;
+      setTimeout(function(){
+        el.classList.remove("sk-fill");
+        el.style.textShadow=""; el.style.filter="";
+        if(svg && !document.querySelector(".sk-on,.sk-fill")){ svg.remove(); svg=null; }
+      },460);
+    },1250);
+  };
 })();
 
 /* ============ 工卡：点击人物照片切换（黑衣 / 白衣） ============ */
