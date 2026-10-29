@@ -1947,7 +1947,7 @@ footer .f-ghost{
   text-shadow:none !important;
   filter:url(#sketchF);
   clip-path:inset(-20% 100% -30% -2%);
-  animation:skDraw .34s steps(5,end) forwards;
+  animation:skDraw .28s steps(4,end) forwards;
 }
 @keyframes skDraw{to{clip-path:inset(-20% -6% -30% -2%);}}
 .sk-fill{
@@ -4118,11 +4118,8 @@ function setPage(id, instant){
     }, 520);
   }
   showExploreNote(id);
-    /* 内页大标题：首次到访该页时手绘成形（揭幕后才演，别抢在幕布前面） */
-    if(window.__revealed && window.__sketch && id!=="home"){
-      var sk1=document.querySelector("#page-"+id+" .page-hero h1");
-      if(sk1 && !sk1.dataset.skDone) setTimeout(function(){ window.__sketch(sk1); }, 640);
-    }
+    /* 内页标题组：切页瞬间起笔，画入正好藏在转场卷轴后面，揭开来线稿已在沸腾 */
+    if(window.__revealed && window.__sketchPage) window.__sketchPage(id);
     window.__wsVisit && window.__wsVisit(id);
   window.scrollTo({top:0, behavior: first ? "auto" : "smooth"});
   revealScan();
@@ -5255,10 +5252,10 @@ function showExploreNote(id, custom){
     }, 660);
     if (window.__homeSwapHold) window.__homeSwapHold();      /* 幕布后先定格：名片在上 */
     /* 主名「林子炀」手绘成形：揭幕 0.26s 后起笔，只演这一次 */
-    if(window.__sketch) setTimeout(function(){
+    if(window.__sketch){
       if(current==="home") window.__sketch(document.querySelector("#page-home .hero-name"));
-      else { var skh=document.querySelector("#page-"+current+" .page-hero h1"); if(skh) window.__sketch(skh); }
-    }, 260);
+      else window.__sketchPage(current);
+    }
     if (window.__homeSwap) setTimeout(window.__homeSwap, 2600); /* 停 2.6s 后换位（1.3s） */
   }
 
@@ -5467,17 +5464,40 @@ function showExploreNote(id, custom){
       '<feDisplacementMap in="SourceGraphic" in2="n" scale="11" xChannelSelector="R" yChannelSelector="G"/></filter>';
     document.body.appendChild(svg);
   }
+  /* 整页一组：大标题 + 地图标题同时起笔（切页瞬间调用，画入藏在幕布后面） */
+  window.__sketchPage=function(id){
+    if(!window.__revealed || id==="home") return;
+    ["#page-"+id+" .page-hero h1", "#page-"+id+" .exp-map .em-title"].forEach(function(sel){
+      window.__sketch(document.querySelector(sel));
+    });
+  };
+  /* 滚动自动扫描：其余 .sec-title 与首页地图标题，进入视口前 160px 就起笔 */
+  var io=null;
+  function autoScan(){
+    if(!window.IntersectionObserver) return;
+    if(!io) io=new IntersectionObserver(function(es){
+      es.forEach(function(en){
+        if(en.isIntersecting){ io.unobserve(en.target); window.__sketch(en.target); }
+      });
+    },{rootMargin:"0px 0px 160px 0px"});
+    document.querySelectorAll(".sec-title:not([data-sk-io]), #page-home .exp-map .em-title:not([data-sk-io])")
+      .forEach(function(el){ el.setAttribute("data-sk-io","1"); io.observe(el); });
+  }
+  if(document.readyState!=="loading") autoScan();
+  else document.addEventListener("DOMContentLoaded",autoScan);
+
   window.__sketch=function(el){
     if(!el||el.dataset.skDone) return;
     if(window.matchMedia("(prefers-reduced-motion: reduce)").matches){ el.dataset.skDone="1"; return; }
     el.dataset.skDone="1";
+    if(el.dataset.skIO){ el.removeAttribute("data-sk-io"); }
     ensureFilter();
     var t=svg.querySelector("feTurbulence"), dm=svg.querySelector("feDisplacementMap");
     el.style.setProperty("--sk-ink",getComputedStyle(el).color);
     var shadow=getComputedStyle(el).textShadow;
     el.classList.add("sk-on");
     var iv=setInterval(function(){ t.setAttribute("seed",String(1+Math.floor(Math.random()*99))); },85);
-    setTimeout(function(){ dm.setAttribute("scale","7"); },340);
+    setTimeout(function(){ dm.setAttribute("scale","7"); },280);
     setTimeout(function(){
       clearInterval(iv);
       el.classList.remove("sk-on"); el.classList.add("sk-fill");
@@ -5486,8 +5506,8 @@ function showExploreNote(id, custom){
         el.classList.remove("sk-fill");
         el.style.textShadow=""; el.style.filter="";
         if(svg && !document.querySelector(".sk-on,.sk-fill")){ svg.remove(); svg=null; }
-      },460);
-    },1250);
+      },400);
+    },850);
   };
 })();
 
